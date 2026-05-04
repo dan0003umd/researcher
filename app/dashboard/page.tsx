@@ -1,0 +1,302 @@
+import Link from "next/link";
+import { CheckCircle2 } from "lucide-react";
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { RecruitingStatusToggle } from "@/app/dashboard/RecruitingStatusToggle";
+import { LabCard } from "@/components/shared/cards/LabCard";
+import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/server";
+import { appRouter } from "@/server/routers";
+import { createTRPCContext } from "@/server/trpc";
+
+type StudentSignalStatus = "pending" | "reviewed" | "archived";
+
+const signalStatusLabelMap: Record<StudentSignalStatus, string> = {
+  pending: "Pending",
+  reviewed: "Reviewed",
+  archived: "Archived",
+};
+
+const signalStatusStyleMap: Record<StudentSignalStatus, string> = {
+  pending: "border-amber-300 bg-amber-100 text-amber-900 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-200",
+  reviewed:
+    "border-sky-300 bg-sky-100 text-sky-900 dark:border-sky-700 dark:bg-sky-900/40 dark:text-sky-200",
+  archived:
+    "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300",
+};
+
+function formatSignalDate(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Recently";
+  }
+
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+async function createDashboardCaller() {
+  const headerStore = await headers();
+  const forwardedHost = headerStore.get("x-forwarded-host");
+  const host = forwardedHost ?? headerStore.get("host") ?? "localhost:3000";
+  const protocol = headerStore.get("x-forwarded-proto") ?? "http";
+  const cookie = headerStore.get("cookie") ?? "";
+
+  const request = new Request(`${protocol}://${host}/dashboard`, {
+    headers: cookie ? { cookie } : undefined,
+  });
+
+  const context = await createTRPCContext({
+    req: request,
+    resHeaders: new Headers(),
+  });
+
+  return appRouter.createCaller(context);
+}
+
+function ProfileCompletenessCard(props: {
+  percentage: number;
+  missing: string[];
+  setupPath: string;
+}) {
+  const isComplete = props.percentage >= 100;
+
+  return (
+    <Card>
+      <CardHeader className="space-y-2">
+        <CardTitle className="text-xl">Profile Completeness</CardTitle>
+        <p className="text-sm text-muted-foreground">{props.percentage}% complete</p>
+        <Progress value={props.percentage} />
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {isComplete ? (
+          <div className="flex items-center gap-2 text-sm text-emerald-700 dark:text-emerald-300">
+            <CheckCircle2 className="h-4 w-4" />
+            Your profile is ready
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Missing fields</p>
+            <ul className="space-y-1 text-sm">
+              {props.missing.map((field) => (
+                <li key={field}>
+                  <Link href={props.setupPath} className="text-primary underline-offset-4 hover:underline">
+                    {field}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+export default async function DashboardPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/auth/login?next=/dashboard");
+  }
+
+  const caller = await createDashboardCaller();
+  const data = await caller.dashboard.getDashboardData();
+
+  if (data.mode === "unverified") {
+    return (
+      <section className="mx-auto max-w-xl">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-2xl">Complete your verification to get started</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Verification confirms your institutional affiliation and helps maintain a trusted academic network.
+            </p>
+            <Link href="/onboarding/verify-email" className={buttonVariants()}>
+              Continue Verification
+            </Link>
+          </CardContent>
+        </Card>
+      </section>
+    );
+  }
+
+  if (data.mode === "no_profile") {
+    const setupPath =
+      data.profileSetupPath ??
+      (data.role === "student" ? "/onboarding/profile" : "/onboarding/faculty-profile");
+
+    return (
+      <section className="mx-auto max-w-xl">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-2xl">Set up your profile to get started</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Your profile powers better matches and helps others understand your research interests.
+            </p>
+            <Link href={setupPath} className={buttonVariants()}>
+              Set Up Profile
+            </Link>
+          </CardContent>
+        </Card>
+      </section>
+    );
+  }
+
+  if (data.mode === "student") {
+    return (
+      <section className="space-y-6">
+        <header className="space-y-2">
+          <p className="text-sm font-medium uppercase tracking-[0.14em] text-muted-foreground">Dashboard</p>
+          <h1 className="text-3xl font-semibold tracking-tight">Welcome back, {data.displayName}</h1>
+        </header>
+
+        <ProfileCompletenessCard
+          percentage={data.profileCompleteness.percentage}
+          missing={data.profileCompleteness.missing}
+          setupPath="/onboarding/profile"
+        />
+
+        <Card>
+          <CardHeader className="flex flex-row items-end justify-between gap-3">
+            <div className="space-y-1">
+              <CardTitle className="text-xl">Labs matching your interests</CardTitle>
+              <p className="text-sm text-muted-foreground">Recommended labs based on your current interest profile.</p>
+            </div>
+            <Link href="/discover" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+              Browse all labs
+            </Link>
+          </CardHeader>
+          <CardContent>
+            {data.student.matchedLabs.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Add research interests to your profile to get personalized lab matches.
+              </p>
+            ) : (
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {data.student.matchedLabs.map((lab) => (
+                  <LabCard key={lab.id} lab={lab} canExpressInterest />
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="space-y-1">
+            <CardTitle className="text-xl">Your Interest Signals</CardTitle>
+            <p className="text-sm text-muted-foreground">Labs you have already contacted.</p>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {data.student.sentSignals.length === 0 ? (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  You haven&apos;t expressed interest in any labs yet.
+                </p>
+                <Link href="/discover" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+                  Discover labs
+                </Link>
+              </div>
+            ) : (
+              data.student.sentSignals.map((signal) => (
+                <div
+                  key={signal.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/90 p-3"
+                >
+                  <div className="space-y-1">
+                    <p className="font-medium">{signal.labName}</p>
+                    <p className="text-xs text-muted-foreground">Sent {formatSignalDate(signal.sentAt)}</p>
+                  </div>
+                  <Badge className={signalStatusStyleMap[signal.status]}>
+                    {signalStatusLabelMap[signal.status]}
+                  </Badge>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+
+        <div>
+          <Link href="/discover" className={buttonVariants()}>
+            Browse Labs
+          </Link>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="space-y-6">
+      <header className="space-y-2">
+        <p className="text-sm font-medium uppercase tracking-[0.14em] text-muted-foreground">Dashboard</p>
+        <h1 className="text-3xl font-semibold tracking-tight">Welcome back, {data.displayName}</h1>
+      </header>
+
+      <RecruitingStatusToggle
+        initialRecruiting={data.faculty.currentlyRecruiting}
+        recruitingMessage={data.faculty.recruitingMessage}
+      />
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between gap-3">
+          <div className="space-y-1">
+            <CardTitle className="text-xl">Interest Signals</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              {data.faculty.pendingSignalCount} pending signal
+              {data.faculty.pendingSignalCount === 1 ? "" : "s"}
+            </p>
+          </div>
+          <Link href="/dashboard/faculty" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+            View all signals
+          </Link>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {data.faculty.latestSignals.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No student signals yet.</p>
+          ) : (
+            data.faculty.latestSignals.map((signal) => (
+              <div key={signal.id} className="rounded-lg border border-border/90 p-3">
+                <div className="mb-1 flex items-center justify-between gap-3">
+                  <p className="font-medium">{signal.studentName}</p>
+                  <Badge className={signalStatusStyleMap[signal.status]}>
+                    {signalStatusLabelMap[signal.status]}
+                  </Badge>
+                </div>
+                <p className="line-clamp-2 text-sm text-muted-foreground">
+                  {signal.message || "No message provided."}
+                </p>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
+      <ProfileCompletenessCard
+        percentage={data.profileCompleteness.percentage}
+        missing={data.profileCompleteness.missing}
+        setupPath="/onboarding/faculty-profile"
+      />
+
+      <div>
+        <Link href="/dashboard/faculty" className={cn(buttonVariants())}>
+          View all signals
+        </Link>
+      </div>
+    </section>
+  );
+}

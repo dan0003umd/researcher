@@ -1,0 +1,141 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is([data-theme="dark"] *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-inter);
+  --font-heading: var(--font-instrument-serif);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  --background: #f7f6f2;
+  --foreground: #28251d;
+  --card: #fdfcf9;
+  --card-foreground: #28251d;
+  --popover: #fdfcf9;
+  --popover-foreground: #28251d;
+  --primary: #01696f;
+  --primary-foreground: #f7f6f2;
+  --secondary: #ece8dd;
+  --secondary-foreground: #38352e;
+  --muted: #efebe1;
+  --muted-foreground: #66635b;
+  --accent: #ddeceb;
+  --accent-foreground: #10474b;
+  --destructive: #a93939;
+  --border: #dad4c7;
+  --input: #d7d2c7;
+  --ring: #01696f;
+  --chart-1: #01696f;
+  --chart-2: #357f6f;
+  --chart-3: #5e8d74;
+  --chart-4: #7a8f7f;
+  --chart-5: #9b9a8a;
+  --radius: 0.625rem;
+  --sidebar: #f1eee6;
+  --sidebar-foreground: #28251d;
+  --sidebar-primary: #01696f;
+  --sidebar-primary-foreground: #f7f6f2;
+  --sidebar-accent: #e6e2d9;
+  --sidebar-accent-foreground: #28251d;
+  --sidebar-border: #d5d0c4;
+  --sidebar-ring: #01696f;
+}
+
+[data-theme="dark"] {
+  --background: #151711;
+  --foreground: #f4f0e6;
+  --card: #1d2018;
+  --card-foreground: #f4f0e6;
+  --popover: #1d2018;
+  --popover-foreground: #f4f0e6;
+  --primary: #2ab0b5;
+  --primary-foreground: #072f31;
+  --secondary: #262a21;
+  --secondary-foreground: #dfdacd;
+  --muted: #22261d;
+  --muted-foreground: #a19d93;
+  --accent: #1d3334;
+  --accent-foreground: #b7d9d9;
+  --destructive: #c46969;
+  --border: #2e3329;
+  --input: #32372c;
+  --ring: #2ab0b5;
+  --chart-1: #2ab0b5;
+  --chart-2: #57c09d;
+  --chart-3: #87b07d;
+  --chart-4: #999f76;
+  --chart-5: #a29a87;
+  --sidebar: #1a1d16;
+  --sidebar-foreground: #f4f0e6;
+  --sidebar-primary: #2ab0b5;
+  --sidebar-primary-foreground: #072f31;
+  --sidebar-accent: #242920;
+  --sidebar-accent-foreground: #e6e1d5;
+  --sidebar-border: #2d3228;
+  --sidebar-ring: #2ab0b5;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  html {
+    @apply font-sans;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-instrument-serif), Georgia, serif;
+  }
+}
