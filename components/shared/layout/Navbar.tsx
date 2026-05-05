@@ -1,9 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { Menu, Moon, Sun, X } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
-import { Moon, Sun } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -30,7 +30,6 @@ type ThemeMode = "light" | "dark";
 
 const baseNavLinks: Array<{ href: string; label: string }> = [
   { href: "/discover", label: "Discover" },
-  { href: "/projects", label: "Projects" },
   { href: "/about", label: "About" },
 ];
 
@@ -39,8 +38,7 @@ function canSeeSignals(role: NavbarUser["role"]) {
 }
 
 function applyTheme(theme: ThemeMode) {
-  const root = document.documentElement;
-  root.setAttribute("data-theme", theme);
+  document.documentElement.setAttribute("data-theme", theme);
 }
 
 function MinimalRMark() {
@@ -81,6 +79,22 @@ export function Navbar({ user, initialTheme }: NavbarProps) {
   const router = useRouter();
   const [theme, setTheme] = useState<ThemeMode>(initialTheme);
   const [isSigningOut, setIsSigningOut] = useState(false);
+  const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [hasScrolled, setHasScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setHasScrolled(window.scrollY > 8);
+    };
+
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
 
   const initials = useMemo(() => emailToInitials(user?.email ?? null), [user?.email]);
   const navLinks = useMemo(() => {
@@ -109,13 +123,21 @@ export function Navbar({ user, initialTheme }: NavbarProps) {
       });
     } finally {
       setIsSigningOut(false);
+      setMobileMenuOpen(false);
       router.push("/auth/login");
       router.refresh();
     }
   };
 
   return (
-    <header className="border-b bg-background/90 backdrop-blur supports-[backdrop-filter]:bg-background/80">
+    <header
+      className={cn(
+        "sticky top-0 z-50 border-b border-border/55 transition-all duration-200",
+        hasScrolled
+          ? "bg-background/85 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80"
+          : "bg-background/95",
+      )}
+    >
       <nav className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
         <Link href="/" className="flex items-center gap-3">
           <MinimalRMark />
@@ -149,7 +171,7 @@ export function Navbar({ user, initialTheme }: NavbarProps) {
           })}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="hidden items-center gap-2 md:flex">
           <Button
             type="button"
             variant="ghost"
@@ -162,37 +184,39 @@ export function Navbar({ user, initialTheme }: NavbarProps) {
           </Button>
 
           {user ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  className="rounded-full text-xs font-semibold"
-                  aria-label="Open profile menu"
-                >
-                  {initials}
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>{user.email ?? "Signed in"}</DropdownMenuLabel>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link href="/dashboard">Profile</Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={(event) => {
-                    event.preventDefault();
-                    if (!isSigningOut) {
-                      void handleSignOut();
-                    }
-                  }}
-                  disabled={isSigningOut}
-                >
-                  {isSigningOut ? "Signing out..." : "Sign Out"}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <>
+              <Link href="/dashboard" className={buttonVariants({ variant: "ghost" })}>
+                Dashboard
+              </Link>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="rounded-full text-xs font-semibold"
+                    aria-label="Open profile menu"
+                  >
+                    {initials}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>{user.email ?? "Signed in"}</DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onSelect={(event) => {
+                      event.preventDefault();
+                      if (!isSigningOut) {
+                        void handleSignOut();
+                      }
+                    }}
+                    disabled={isSigningOut}
+                  >
+                    {isSigningOut ? "Signing out..." : "Sign Out"}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </>
           ) : (
             <Link
               href="/auth/login"
@@ -204,7 +228,94 @@ export function Navbar({ user, initialTheme }: NavbarProps) {
             </Link>
           )}
         </div>
+
+        <div className="flex items-center gap-2 md:hidden">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={toggleTheme}
+            className="text-muted-foreground hover:text-foreground"
+            aria-label="Toggle theme"
+          >
+            {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={() => setMobileMenuOpen((current) => !current)}
+            aria-label="Toggle navigation menu"
+          >
+            {isMobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+          </Button>
+        </div>
       </nav>
+
+      <div
+        className={cn(
+          "md:hidden overflow-hidden border-t border-border/55 transition-all duration-200",
+          isMobileMenuOpen ? "max-h-[24rem] py-4" : "max-h-0 py-0",
+        )}
+      >
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-1 px-6">
+          {navLinks.map((link) => {
+            const isActive = pathname === link.href;
+            const showNotificationDot =
+              link.href === "/dashboard/faculty" && Boolean(user && user.pendingSignalCount > 0);
+
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={cn(
+                  "relative rounded-md px-2 py-2 text-sm font-medium",
+                  isActive ? "text-primary" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {link.label}
+                {showNotificationDot ? (
+                  <span className="ml-2 inline-flex h-2 w-2 rounded-full bg-red-500 align-middle" />
+                ) : null}
+              </Link>
+            );
+          })}
+
+          <div className="mt-2 border-t border-border/60 pt-3">
+            {user ? (
+              <div className="space-y-2">
+                <Link href="/dashboard" className={cn(buttonVariants({ variant: "outline" }), "w-full justify-center")}>
+                  Dashboard
+                </Link>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full justify-center"
+                  onClick={() => {
+                    if (!isSigningOut) {
+                      void handleSignOut();
+                    }
+                  }}
+                  disabled={isSigningOut}
+                >
+                  {isSigningOut ? "Signing out..." : "Sign Out"}
+                </Button>
+              </div>
+            ) : (
+              <Link
+                href="/auth/login"
+                className={cn(
+                  buttonVariants({
+                    className: "w-full justify-center bg-primary text-primary-foreground hover:bg-primary/90",
+                  }),
+                )}
+              >
+                Sign In
+              </Link>
+            )}
+          </div>
+        </div>
+      </div>
     </header>
   );
 }

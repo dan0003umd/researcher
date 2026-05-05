@@ -123,19 +123,26 @@
   }
 
   html {
-    @apply font-sans;
+    @apply scroll-smooth font-sans;
   }
 
   body {
     @apply bg-background text-foreground antialiased;
+    font-family: var(--font-inter), Inter, "Segoe UI", sans-serif;
   }
 
   h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
+  h2 {
     font-family: var(--font-instrument-serif), Georgia, serif;
+  }
+
+  a {
+    color: var(--primary);
+    text-decoration: none;
+  }
+
+  a:hover {
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
   }
 }
