@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ResearchInterestSelector, type InterestGroup } from "@/app/onboarding/shared/ResearchInterestSelector";
 import { SkillSelector, type SkillGroup } from "@/app/onboarding/shared/SkillSelector";
@@ -159,36 +159,6 @@ export function ProfileOnboardingWizard() {
 
   const progressValue = (currentStep / 6) * 100;
 
-  const filteredInterestGroups = useMemo(() => {
-    const query = interestQuery.trim().toLowerCase();
-
-    if (!query) {
-      return interestGroups;
-    }
-
-    return interestGroups
-      .map((group) => ({
-        ...group,
-        interests: group.interests.filter((interest) => interest.name.toLowerCase().includes(query)),
-      }))
-      .filter((group) => group.interests.length > 0);
-  }, [interestGroups, interestQuery]);
-
-  const filteredSkillGroups = useMemo(() => {
-    const query = skillQuery.trim().toLowerCase();
-
-    if (!query) {
-      return skillGroups;
-    }
-
-    return skillGroups
-      .map((group) => ({
-        ...group,
-        skills: group.skills.filter((skill) => skill.name.toLowerCase().includes(query)),
-      }))
-      .filter((group) => group.skills.length > 0);
-  }, [skillGroups, skillQuery]);
-
   const validateCurrentStep = () => {
     setGlobalError(null);
 
@@ -319,9 +289,11 @@ export function ProfileOnboardingWizard() {
         return previous;
       }
 
+      const primaryCount = previous.interests.filter((interest) => interest.isPrimary).length;
+
       return {
         ...previous,
-        interests: [...previous.interests, { interestId, isPrimary: false }],
+        interests: [...previous.interests, { interestId, isPrimary: primaryCount < 3 }],
       };
     });
   };
@@ -420,6 +392,88 @@ export function ProfileOnboardingWizard() {
       setGlobalError(message);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const createCustomInterest = async (name: string) => {
+    try {
+      const createdInterest = await trpcClient.profile.createCustomInterest.mutate({ name });
+      setInterestGroups((previous) => {
+        const alreadyExists = previous.some((group) =>
+          group.interests.some((interest) => interest.id === createdInterest.id),
+        );
+
+        if (alreadyExists) {
+          return previous;
+        }
+
+        const targetGroupIndex = previous.findIndex((group) => group.category === createdInterest.category);
+
+        if (targetGroupIndex === -1) {
+          return [
+            ...previous,
+            {
+              category: createdInterest.category,
+              interests: [createdInterest],
+            },
+          ];
+        }
+
+        return previous.map((group, index) =>
+          index === targetGroupIndex
+            ? {
+                ...group,
+                interests: [...group.interests, createdInterest].sort((a, b) => a.name.localeCompare(b.name)),
+              }
+            : group,
+        );
+      });
+      return createdInterest;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not create custom interest.";
+      setGlobalError(message);
+      throw error;
+    }
+  };
+
+  const createCustomSkill = async (name: string) => {
+    try {
+      const createdSkill = await trpcClient.profile.createCustomSkill.mutate({ name });
+      setSkillGroups((previous) => {
+        const alreadyExists = previous.some((group) =>
+          group.skills.some((skill) => skill.id === createdSkill.id),
+        );
+
+        if (alreadyExists) {
+          return previous;
+        }
+
+        const targetGroupIndex = previous.findIndex((group) => group.category === createdSkill.category);
+
+        if (targetGroupIndex === -1) {
+          return [
+            ...previous,
+            {
+              category: createdSkill.category,
+              skills: [createdSkill],
+            },
+          ];
+        }
+
+        return previous.map((group, index) =>
+          index === targetGroupIndex
+            ? {
+                ...group,
+                skills: [...group.skills, createdSkill].sort((a, b) => a.name.localeCompare(b.name)),
+              }
+            : group,
+        );
+      });
+      return createdSkill;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not create custom skill.";
+      setGlobalError(message);
+      throw error;
     }
   };
 
@@ -532,24 +586,26 @@ export function ProfileOnboardingWizard() {
 
           {currentStep === 2 ? (
             <ResearchInterestSelector
-              groups={filteredInterestGroups}
+              groups={interestGroups}
               selected={formValues.interests}
               query={interestQuery}
               onQueryChange={setInterestQuery}
               onToggleInterest={toggleInterest}
               onTogglePrimary={togglePrimaryInterest}
+              onCreateCustomInterest={createCustomInterest}
               errorMessage={errors.interests}
             />
           ) : null}
 
           {currentStep === 3 ? (
             <SkillSelector
-              groups={filteredSkillGroups}
+              groups={skillGroups}
               selected={formValues.skills}
               query={skillQuery}
               onQueryChange={setSkillQuery}
               onToggleSkill={toggleSkill}
               onSetSkillProficiency={setSkillProficiency}
+              onCreateCustomSkill={createCustomSkill}
               errorMessage={errors.skills}
             />
           ) : null}

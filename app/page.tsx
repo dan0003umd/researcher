@@ -1,10 +1,21 @@
 import Link from "next/link";
+import { DeletedAccountBanner } from "@/app/DeletedAccountBanner";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-export default function Home() {
+type HomePageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function Home({ searchParams }: HomePageProps) {
+  const resolvedSearchParams = await searchParams;
+  const deletedParam = resolvedSearchParams.deleted;
+  const deleted = Array.isArray(deletedParam) ? deletedParam[0] === "true" : deletedParam === "true";
+
   return (
     <div className="space-y-20 pb-10 sm:space-y-24">
+      {deleted ? <DeletedAccountBanner /> : null}
+
       <section className="space-y-7 pt-8 sm:pt-14">
         <p className="text-sm font-medium uppercase tracking-[0.16em] text-muted-foreground">
           UMD &middot; AIM &middot; UMIACS

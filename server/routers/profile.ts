@@ -36,6 +36,22 @@ const facultyProfileCreateInputSchema = facultyProfileFormSchema;
 const studentProfileUpdateInputSchema = studentProfileEditSchema;
 const facultyProfileUpdateInputSchema = facultyProfileEditSchema;
 
+const createCustomInterestInputSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Enter an interest name.")
+    .max(80, "Interest names must be 80 characters or less."),
+});
+
+const createCustomSkillInputSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Enter a skill name.")
+    .max(80, "Skill names must be 80 characters or less."),
+});
+
 const recruitingStatusInputSchema = z
   .object({
     recruiting: z.boolean(),
@@ -130,6 +146,10 @@ function normalizeSignalStatus(value: string | null | undefined) {
   return "pending" as const;
 }
 
+function normalizeCustomName(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
+
 async function replaceInterestSelections(
   userId: string,
   interests: Array<{ interestId: number; isPrimary: boolean }>,
@@ -194,6 +214,127 @@ async function replaceSkillSelections(
 }
 
 export const profileRouter = createTRPCRouter({
+  createCustomInterest: protectedProcedure
+    .input(createCustomInterestInputSchema)
+    .mutation(async ({ input }) => {
+      const name = normalizeCustomName(input.name);
+      const adminClient = createAdminClient();
+
+      const { data: existingInterest, error: existingInterestError } = await adminClient
+        .from("research_interests")
+        .select("id, name, category, parent_id")
+        .ilike("name", name)
+        .order("parent_id", { ascending: true, nullsFirst: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (existingInterestError) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Could not check existing interests.",
+        });
+      }
+
+      if (existingInterest) {
+        return existingInterest;
+      }
+
+      const { data: insertedInterest, error: insertInterestError } = await adminClient
+        .from("research_interests")
+        .insert({
+          name,
+          category: "Custom",
+          parent_id: null,
+        })
+        .select("id, name, category, parent_id")
+        .single();
+
+      if (insertInterestError) {
+        const duplicateName = insertInterestError.code === "23505";
+
+        if (duplicateName) {
+          const { data: duplicateInterest, error: duplicateInterestError } = await adminClient
+            .from("research_interests")
+            .select("id, name, category, parent_id")
+            .ilike("name", name)
+            .order("parent_id", { ascending: true, nullsFirst: true })
+            .limit(1)
+            .maybeSingle();
+
+          if (!duplicateInterestError && duplicateInterest) {
+            return duplicateInterest;
+          }
+        }
+
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Could not create custom research interest.",
+        });
+      }
+
+      return insertedInterest;
+    }),
+
+  createCustomSkill: protectedProcedure
+    .input(createCustomSkillInputSchema)
+    .mutation(async ({ input }) => {
+      const name = normalizeCustomName(input.name);
+      const adminClient = createAdminClient();
+
+      const { data: existingSkill, error: existingSkillError } = await adminClient
+        .from("skills")
+        .select("id, name, category")
+        .ilike("name", name)
+        .order("name", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      if (existingSkillError) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Could not check existing skills.",
+        });
+      }
+
+      if (existingSkill) {
+        return existingSkill;
+      }
+
+      const { data: insertedSkill, error: insertSkillError } = await adminClient
+        .from("skills")
+        .insert({
+          name,
+          category: "Custom",
+        })
+        .select("id, name, category")
+        .single();
+
+      if (insertSkillError) {
+        const duplicateName = insertSkillError.code === "23505";
+
+        if (duplicateName) {
+          const { data: duplicateSkill, error: duplicateSkillError } = await adminClient
+            .from("skills")
+            .select("id, name, category")
+            .ilike("name", name)
+            .order("name", { ascending: true })
+            .limit(1)
+            .maybeSingle();
+
+          if (!duplicateSkillError && duplicateSkill) {
+            return duplicateSkill;
+          }
+        }
+
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Could not create custom skill.",
+        });
+      }
+
+      return insertedSkill;
+    }),
+
   getResearchInterests: protectedProcedure.query(async ({ ctx }) => {
     const { data, error } = await ctx.supabase
       .from("research_interests")
@@ -645,6 +786,98 @@ export const profileRouter = createTRPCRouter({
         status: normalizeSignalStatus(signal.status),
       };
     });
+  }),
+
+  deleteAccount: protectedProcedure.mutation(async ({ ctx }) => {
+    const userId = ctx.user.id;
+    const adminClient = createAdminClient();
+
+    let role = normalizeRole(
+      ctx.user.app_metadata && typeof ctx.user.app_metadata === "object" && "role" in ctx.user.app_metadata
+        ? String((ctx.user.app_metadata as Record<string, unknown>).role)
+        : null,
+    );
+
+    if (!role) {
+      const { data: profileRow, error: profileError } = await adminClient
+        .from("profiles")
+        .select("role")
+        .eq("id", userId)
+        .maybeSingle();
+
+      if (profileError) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Something went wrong. Please try again or contact support.",
+        });
+      }
+
+      role = normalizeRole(profileRow?.role ?? null);
+    }
+
+    const runStep = async (
+      stepName: string,
+      operation: () => Promise<{ error: { message: string } | null }>,
+    ) => {
+      const result = await operation();
+
+      if (result.error) {
+        throw new Error(`${stepName}: ${result.error.message}`);
+      }
+    };
+
+    try {
+      if (role === "faculty" || role === "researcher" || role === "coordinator") {
+        await runStep("delete_faculty_signals", async () =>
+          await adminClient.from("interest_signals").delete().eq("faculty_id", userId),
+        );
+        await runStep("delete_student_signals", async () =>
+          await adminClient.from("interest_signals").delete().eq("student_id", userId),
+        );
+        await runStep("delete_faculty_profile", async () =>
+          await adminClient.from("faculty_profiles").delete().eq("user_id", userId),
+        );
+        await runStep("delete_student_profile", async () =>
+          await adminClient.from("student_profiles").delete().eq("user_id", userId),
+        );
+      } else {
+        await runStep("delete_student_signals", async () =>
+          await adminClient.from("interest_signals").delete().eq("student_id", userId),
+        );
+        await runStep("delete_faculty_signals", async () =>
+          await adminClient.from("interest_signals").delete().eq("faculty_id", userId),
+        );
+        await runStep("delete_student_profile", async () =>
+          await adminClient.from("student_profiles").delete().eq("user_id", userId),
+        );
+        await runStep("delete_faculty_profile", async () =>
+          await adminClient.from("faculty_profiles").delete().eq("user_id", userId),
+        );
+      }
+
+      await runStep("delete_profile_interests", async () =>
+        await adminClient.from("profile_research_interests").delete().eq("user_id", userId),
+      );
+      await runStep("delete_profile_skills", async () =>
+        await adminClient.from("profile_skills").delete().eq("user_id", userId),
+      );
+      await runStep("delete_profiles_row", async () =>
+        await adminClient.from("profiles").delete().eq("id", userId),
+      );
+
+      const { error: authDeleteError } = await adminClient.auth.admin.deleteUser(userId);
+      if (authDeleteError) {
+        throw new Error(`delete_auth_user: ${authDeleteError.message}`);
+      }
+    } catch (error) {
+      console.error("Delete account failed", { userId, role, error });
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Something went wrong. Please try again or contact support.",
+      });
+    }
+
+    return { success: true };
   }),
 
   setRecruitingStatus: protectedProcedure
