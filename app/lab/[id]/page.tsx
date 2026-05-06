@@ -5,7 +5,7 @@ import { notFound } from "next/navigation";
 import { ExpressInterestSheet } from "@/app/lab/[id]/ExpressInterestSheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { appRouter } from "@/server/routers";
@@ -94,6 +94,7 @@ export default async function LabProfilePage({ params }: LabPageProps) {
 
   const metadata = user?.app_metadata as AppMetadata | undefined;
   const canExpressInterest = canStudentExpressInterest(metadata ?? null);
+  const isLabOwner = user?.id === labProfile.id;
 
   const [alreadySent, studentSummary] = canExpressInterest
     ? await Promise.all([
@@ -137,20 +138,27 @@ export default async function LabProfilePage({ params }: LabPageProps) {
               </div>
             </div>
 
-            {canExpressInterest ? (
-              alreadySent ? (
-                <Button type="button" disabled>
-                  <CheckCircle2 className="mr-2 h-4 w-4" />
-                  Interest sent
-                </Button>
-              ) : studentSummary ? (
-                <ExpressInterestSheet
-                  facultyId={labProfile.id}
-                  facultyName={labProfile.piName}
-                  studentSummary={studentSummary}
-                />
-              ) : null
-            ) : null}
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              {isLabOwner ? (
+                <Link href="/profile/faculty/edit" className={buttonVariants({ variant: "outline" })}>
+                  Edit Lab Profile
+                </Link>
+              ) : null}
+              {canExpressInterest ? (
+                alreadySent ? (
+                  <Button type="button" disabled>
+                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                    Interest sent
+                  </Button>
+                ) : studentSummary ? (
+                  <ExpressInterestSheet
+                    facultyId={labProfile.id}
+                    facultyName={labProfile.piName}
+                    studentSummary={studentSummary}
+                  />
+                ) : null
+              ) : null}
+            </div>
           </div>
         </CardHeader>
 

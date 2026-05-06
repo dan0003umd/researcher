@@ -44,6 +44,14 @@ function normalizeRole(value: string | null | undefined): UserRole {
   return null;
 }
 
+function normalizeInstitutionalVerified(value: unknown) {
+  if (typeof value === "boolean") {
+    return value;
+  }
+
+  return null;
+}
+
 function isFacultyRole(role: UserRole) {
   return role === "faculty" || role === "researcher" || role === "coordinator";
 }
@@ -67,12 +75,27 @@ export default async function RootLayout({
       : null,
   );
 
-  if (user && !role) {
-    const { data: profileRow } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
-    role = normalizeRole(profileRow?.role ?? null);
+  let institutionalVerified = normalizeInstitutionalVerified(
+    user?.app_metadata &&
+      typeof user.app_metadata === "object" &&
+      "institutional_verified" in user.app_metadata
+      ? user.app_metadata.institutional_verified
+      : null,
+  );
+
+  if (user && (!role || institutionalVerified === null)) {
+    const { data: profileRow } = await supabase
+      .from("profiles")
+      .select("role, institutional_verified")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    role = role ?? normalizeRole(profileRow?.role ?? null);
+    institutionalVerified = institutionalVerified ?? profileRow?.institutional_verified ?? false;
   }
 
   let pendingSignalCount = 0;
+  let recentReviewedSignalCount = 0;
   if (user && isFacultyRole(role)) {
     const { count } = await supabase
       .from("interest_signals")
@@ -81,6 +104,18 @@ export default async function RootLayout({
       .eq("status", "pending");
 
     pendingSignalCount = count ?? 0;
+  }
+
+  if (user && role === "student" && institutionalVerified) {
+    const sevenDaysAgoIso = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const { count } = await supabase
+      .from("interest_signals")
+      .select("id", { count: "exact", head: true })
+      .eq("student_id", user.id)
+      .eq("status", "reviewed")
+      .gte("reviewed_at", sevenDaysAgoIso);
+
+    recentReviewedSignalCount = count ?? 0;
   }
 
   return (
@@ -94,7 +129,9 @@ export default async function RootLayout({
                   ? {
                       email: user.email ?? null,
                       role,
+                      institutionalVerified: Boolean(institutionalVerified),
                       pendingSignalCount,
+                      recentReviewedSignalCount,
                     }
                   : null
               }

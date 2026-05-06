@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { createClient } from "@/lib/supabase/server";
 import { appRouter } from "@/server/routers";
 import { createTRPCContext } from "@/server/trpc";
 
@@ -38,6 +39,9 @@ const collaborationLabelMap: Record<string, string> = {
   research_assistant: "Research Assistant",
   co_author: "Co-author",
   project_lead: "Project Lead",
+  independent_project: "Independent Project",
+  thesis_collaboration: "Thesis Collaboration",
+  casual_mentorship: "Casual Mentorship",
 };
 
 async function createStudentCaller() {
@@ -62,6 +66,10 @@ async function createStudentCaller() {
 export default async function StudentProfilePage({ params }: StudentProfilePageProps) {
   const { id } = await params;
   const caller = await createStudentCaller();
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
   let profile: Awaited<ReturnType<typeof caller.discover.getStudentProfile>>;
   try {
@@ -76,10 +84,17 @@ export default async function StudentProfilePage({ params }: StudentProfilePageP
 
   return (
     <section className="space-y-6">
-      <Link href="/dashboard/faculty" className={cn(buttonVariants({ variant: "outline" }), "inline-flex")}>
-        <ArrowLeft className="mr-2 h-4 w-4" />
-        Back
-      </Link>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Link href="/dashboard/faculty" className={cn(buttonVariants({ variant: "outline" }), "inline-flex")}>
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back
+        </Link>
+        {user?.id === id ? (
+          <Link href="/profile/edit" className={cn(buttonVariants({ variant: "default" }), "inline-flex")}>
+            Edit Profile
+          </Link>
+        ) : null}
+      </div>
 
       <Card>
         <CardHeader className="space-y-3">

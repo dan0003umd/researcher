@@ -66,13 +66,20 @@ function ProfileCompletenessCard(props: {
   percentage: number;
   missing: string[];
   setupPath: string;
+  editPath: string;
+  editLabel: string;
 }) {
   const isComplete = props.percentage >= 100;
 
   return (
     <Card>
       <CardHeader className="space-y-2">
-        <CardTitle className="text-xl">Profile Completeness</CardTitle>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle className="text-xl">Profile Completeness</CardTitle>
+          <Link href={props.editPath} className="text-sm font-medium text-primary underline-offset-4 hover:underline">
+            {props.editLabel}
+          </Link>
+        </div>
         <p className="text-sm text-muted-foreground">{props.percentage}% complete</p>
         <Progress value={props.percentage} />
       </CardHeader>
@@ -170,6 +177,8 @@ export default async function DashboardPage() {
           percentage={data.profileCompleteness.percentage}
           missing={data.profileCompleteness.missing}
           setupPath="/onboarding/profile"
+          editPath="/profile/edit"
+          editLabel="Edit Profile"
         />
 
         <Card>
@@ -199,7 +208,15 @@ export default async function DashboardPage() {
 
         <Card>
           <CardHeader className="space-y-1">
-            <CardTitle className="text-xl">Your Interest Signals</CardTitle>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <CardTitle className="text-xl">Your Interest Signals</CardTitle>
+              <Link
+                href="/dashboard/signals"
+                className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+              >
+                View all signals
+              </Link>
+            </div>
             <p className="text-sm text-muted-foreground">Labs you have already contacted.</p>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -290,6 +307,8 @@ export default async function DashboardPage() {
         percentage={data.profileCompleteness.percentage}
         missing={data.profileCompleteness.missing}
         setupPath="/onboarding/faculty-profile"
+        editPath="/profile/faculty/edit"
+        editLabel="Edit Lab Profile"
       />
 
       <div>

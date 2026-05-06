@@ -382,7 +382,10 @@ export const facultyRouter = createTRPCRouter({
 
       const { error: updateError } = await adminClient
         .from("interest_signals")
-        .update({ status: input.status })
+        .update({
+          status: input.status,
+          reviewed_at: input.status === "reviewed" ? new Date().toISOString() : null,
+        })
         .eq("id", input.signalId);
 
       if (updateError) {

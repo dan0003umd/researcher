@@ -2,21 +2,18 @@ import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import {
   availabilityOptions,
-  basicInfoSchema,
-  collaborationPreferencesSchema,
-  facultyAcademicInfoSchema,
-  facultyBioLinksSchema,
+  facultyProfileEditSchema,
   facultyProfileFormSchema,
-  facultyRecruitingSchema,
+  facultySoughtStudentLevelOptions,
   normalizeCollaborationTypes,
   skillSelectionSchema,
   skillProficiencyOptions,
+  studentEditCollaborationTypeOptions,
+  studentProfileEditSchema,
   studentProfileFormSchema,
   storedCollaborationTypeOptions,
-  aboutYouSchema,
-  interestSelectionSchema,
-  experienceLevelOptions,
 } from "@/lib/validators/profile";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createTRPCRouter, protectedProcedure } from "@/server/trpc";
 
 const getGroupedResponse = <T extends { category: string }>(rows: T[]) => {
@@ -36,48 +33,8 @@ const getGroupedResponse = <T extends { category: string }>(rows: T[]) => {
 
 const studentProfileCreateInputSchema = studentProfileFormSchema;
 const facultyProfileCreateInputSchema = facultyProfileFormSchema;
-
-const studentProfileUpdateInputSchema = z
-  .object({
-    displayName: basicInfoSchema.shape.displayName.optional(),
-    yearLevel: basicInfoSchema.shape.yearLevel.optional(),
-    degreeType: basicInfoSchema.shape.degreeType.optional(),
-    department: basicInfoSchema.shape.department.optional(),
-    interests: interestSelectionSchema.optional(),
-    skills: skillSelectionSchema.optional(),
-    availability: z.enum(availabilityOptions).optional(),
-    experienceLevel: z.enum(experienceLevelOptions).optional(),
-    preferredCollaborationType: collaborationPreferencesSchema.shape.preferredCollaborationType.optional(),
-    labExperience: z.boolean().optional(),
-    bio: aboutYouSchema.shape.bio.optional(),
-    linkedinUrl: aboutYouSchema.shape.linkedinUrl.optional(),
-    orcidUrl: aboutYouSchema.shape.orcidUrl.optional(),
-    websiteUrl: aboutYouSchema.shape.websiteUrl.optional(),
-  })
-  .refine((value) => Object.keys(value).length > 0, {
-    message: "Provide at least one field to update.",
-  });
-
-const facultyProfileUpdateInputSchema = z
-  .object({
-    displayName: facultyAcademicInfoSchema.shape.displayName.optional(),
-    title: facultyAcademicInfoSchema.shape.title.optional(),
-    department: facultyAcademicInfoSchema.shape.department.optional(),
-    labName: facultyAcademicInfoSchema.shape.labName.optional(),
-    labUrl: facultyAcademicInfoSchema.shape.labUrl.optional(),
-    interests: interestSelectionSchema.optional(),
-    currentlyRecruiting: facultyRecruitingSchema.shape.currentlyRecruiting.optional(),
-    recruitingMessage: facultyRecruitingSchema.shape.recruitingMessage.optional(),
-    skills: skillSelectionSchema.optional(),
-    soughtExperienceLevel: facultyRecruitingSchema.shape.soughtExperienceLevel.optional(),
-    bio: facultyBioLinksSchema.shape.bio.optional(),
-    googleScholarUrl: facultyBioLinksSchema.shape.googleScholarUrl.optional(),
-    orcidUrl: facultyBioLinksSchema.shape.orcidUrl.optional(),
-    labWebsiteUrl: facultyBioLinksSchema.shape.labWebsiteUrl.optional(),
-  })
-  .refine((value) => Object.keys(value).length > 0, {
-    message: "Provide at least one field to update.",
-  });
+const studentProfileUpdateInputSchema = studentProfileEditSchema;
+const facultyProfileUpdateInputSchema = facultyProfileEditSchema;
 
 const recruitingStatusInputSchema = z
   .object({
@@ -101,6 +58,76 @@ function cleanOptionalUrl(value: string | undefined) {
 
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function cleanOptionalText(value: string | undefined) {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function mapSoughtExperienceToStudentLevels(value: "any" | "beginner" | "intermediate" | "advanced") {
+  if (value === "any") {
+    return ["undergrad", "ms", "phd"] as Array<(typeof facultySoughtStudentLevelOptions)[number]>;
+  }
+
+  if (value === "beginner") {
+    return ["undergrad"] as Array<(typeof facultySoughtStudentLevelOptions)[number]>;
+  }
+
+  if (value === "intermediate") {
+    return ["undergrad", "ms"] as Array<(typeof facultySoughtStudentLevelOptions)[number]>;
+  }
+
+  return ["phd"] as Array<(typeof facultySoughtStudentLevelOptions)[number]>;
+}
+
+function mapStudentLevelsToSoughtExperience(levels: Array<(typeof facultySoughtStudentLevelOptions)[number]>) {
+  const sorted = Array.from(new Set(levels)).sort();
+
+  if (sorted.length === 3) {
+    return "any" as const;
+  }
+
+  if (sorted.length === 1 && sorted[0] === "undergrad") {
+    return "beginner" as const;
+  }
+
+  if (sorted.length === 1 && sorted[0] === "phd") {
+    return "advanced" as const;
+  }
+
+  return "intermediate" as const;
+}
+
+function normalizeStudentCollaborationTypes(values: Array<(typeof studentEditCollaborationTypeOptions)[number]>) {
+  const mapped = values.map((value) => (value === "project_lead" ? "independent_project" : value));
+  return Array.from(new Set(mapped));
+}
+
+function normalizeRole(value: unknown) {
+  if (
+    value === "student" ||
+    value === "faculty" ||
+    value === "researcher" ||
+    value === "coordinator" ||
+    value === "unverified"
+  ) {
+    return value;
+  }
+
+  return null;
+}
+
+function normalizeSignalStatus(value: string | null | undefined) {
+  if (value === "reviewed" || value === "archived") {
+    return value;
+  }
+
+  return "pending" as const;
 }
 
 async function replaceInterestSelections(
@@ -216,7 +243,7 @@ export const profileRouter = createTRPCRouter({
     const { data: profile, error: profileError } = await ctx.supabase
       .from("student_profiles")
       .select(
-        "display_name, year_level, degree_type, department, availability, experience_level, preferred_collaboration_type, lab_experience, bio, linkedin_url, orcid_url, website_url",
+        "display_name, year_level, degree_type, department, availability, experience_level, preferred_collaboration_type, lab_experience, bio, linkedin_url, orcid_url, website_url, hours_per_week, start_date_availability, github_url",
       )
       .eq("user_id", ctx.user.id)
       .maybeSingle();
@@ -280,7 +307,7 @@ export const profileRouter = createTRPCRouter({
     const { data: profile, error: profileError } = await ctx.supabase
       .from("faculty_profiles")
       .select(
-        "display_name, title, department, lab_name, lab_url, bio, currently_recruiting, recruiting_message, desired_experience_level, google_scholar_url, orcid_url",
+        "display_name, title, department, lab_name, lab_url, bio, currently_recruiting, recruiting_message, desired_experience_level, google_scholar_url, orcid_url, sought_student_levels, personal_website_url",
       )
       .eq("user_id", ctx.user.id)
       .maybeSingle();
@@ -323,6 +350,10 @@ export const profileRouter = createTRPCRouter({
 
     return {
       ...profile,
+      sought_student_levels:
+        profile.sought_student_levels && profile.sought_student_levels.length > 0
+          ? profile.sought_student_levels
+          : mapSoughtExperienceToStudentLevels(profile.desired_experience_level),
       interests:
         interestRows?.map((row) => ({
           interestId: row.interest_id,
@@ -367,6 +398,9 @@ export const profileRouter = createTRPCRouter({
           linkedin_url: cleanOptionalUrl(input.linkedinUrl),
           orcid_url: cleanOptionalUrl(input.orcidUrl),
           website_url: cleanOptionalUrl(input.websiteUrl),
+          hours_per_week: null,
+          start_date_availability: null,
+          github_url: null,
         },
         { onConflict: "user_id" },
       );
@@ -389,66 +423,44 @@ export const profileRouter = createTRPCRouter({
   updateStudentProfile: protectedProcedure
     .input(studentProfileUpdateInputSchema)
     .mutation(async ({ ctx, input }) => {
-      const profileUpdates: {
-        display_name?: string;
-        year_level?: string;
-        degree_type?: string;
-        department?: string;
-        availability?: (typeof availabilityOptions)[number];
-        experience_level?: (typeof experienceLevelOptions)[number];
-        preferred_collaboration_type?: (typeof storedCollaborationTypeOptions)[number][];
-        lab_experience?: boolean;
-        bio?: string;
-        linkedin_url?: string | null;
-        orcid_url?: string | null;
-        website_url?: string | null;
-      } = {};
+      const normalizedCollaboration = normalizeStudentCollaborationTypes(input.preferredCollaborationType);
 
-      if (input.displayName !== undefined) profileUpdates.display_name = input.displayName;
-      if (input.yearLevel !== undefined) profileUpdates.year_level = input.yearLevel;
-      if (input.degreeType !== undefined) profileUpdates.degree_type = input.degreeType;
-      if (input.department !== undefined) profileUpdates.department = input.department;
-      if (input.availability !== undefined) profileUpdates.availability = input.availability;
-      if (input.experienceLevel !== undefined) profileUpdates.experience_level = input.experienceLevel;
-      if (input.labExperience !== undefined) profileUpdates.lab_experience = input.labExperience;
-      if (input.bio !== undefined) profileUpdates.bio = input.bio;
-      if (input.linkedinUrl !== undefined) profileUpdates.linkedin_url = cleanOptionalUrl(input.linkedinUrl);
-      if (input.orcidUrl !== undefined) profileUpdates.orcid_url = cleanOptionalUrl(input.orcidUrl);
-      if (input.websiteUrl !== undefined) profileUpdates.website_url = cleanOptionalUrl(input.websiteUrl);
-
-      if (input.preferredCollaborationType !== undefined) {
-        const normalized = normalizeCollaborationTypes(input.preferredCollaborationType);
-
-        if (normalized.length === 0) {
-          throw new TRPCError({
-            code: "BAD_REQUEST",
-            message: "Choose at least one collaboration preference.",
-          });
-        }
-
-        profileUpdates.preferred_collaboration_type = normalized;
+      if (normalizedCollaboration.length === 0) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Choose at least one collaboration preference.",
+        });
       }
 
-      if (Object.keys(profileUpdates).length > 0) {
-        const { error: updateError } = await ctx.supabase
-          .from("student_profiles")
-          .upsert({ user_id: ctx.user.id, ...profileUpdates }, { onConflict: "user_id" });
+      const { error: updateError } = await ctx.supabase.from("student_profiles").upsert(
+        {
+          user_id: ctx.user.id,
+          display_name: input.displayName,
+          year_level: input.yearLevel,
+          degree_type: input.degreeType,
+          department: input.department,
+          availability: input.availability,
+          preferred_collaboration_type: normalizedCollaboration,
+          bio: input.bio,
+          linkedin_url: cleanOptionalUrl(input.linkedinUrl),
+          website_url: cleanOptionalUrl(input.websiteUrl),
+          orcid_url: cleanOptionalText(input.orcid),
+          hours_per_week: input.hoursPerWeek,
+          start_date_availability: input.startDateAvailability,
+          github_url: cleanOptionalUrl(input.githubUrl),
+        },
+        { onConflict: "user_id" },
+      );
 
-        if (updateError) {
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "Could not update student profile.",
-          });
-        }
+      if (updateError) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Could not update student profile.",
+        });
       }
 
-      if (input.interests !== undefined) {
-        await replaceInterestSelections(ctx.user.id, input.interests, ctx.supabase);
-      }
-
-      if (input.skills !== undefined) {
-        await replaceSkillSelections(ctx.user.id, input.skills, ctx.supabase);
-      }
+      await replaceInterestSelections(ctx.user.id, input.interests, ctx.supabase);
+      await replaceSkillSelections(ctx.user.id, input.skills, ctx.supabase);
 
       return {
         success: true,
@@ -470,8 +482,10 @@ export const profileRouter = createTRPCRouter({
           currently_recruiting: input.currentlyRecruiting,
           recruiting_message: input.currentlyRecruiting ? input.recruitingMessage : null,
           desired_experience_level: input.soughtExperienceLevel,
+          sought_student_levels: mapSoughtExperienceToStudentLevels(input.soughtExperienceLevel),
           google_scholar_url: cleanOptionalUrl(input.googleScholarUrl),
           orcid_url: cleanOptionalUrl(input.orcidUrl),
+          personal_website_url: null,
         },
         { onConflict: "user_id" },
       );
@@ -492,62 +506,146 @@ export const profileRouter = createTRPCRouter({
   updateFacultyProfile: protectedProcedure
     .input(facultyProfileUpdateInputSchema)
     .mutation(async ({ ctx, input }) => {
-      const profileUpdates: {
-        display_name?: string;
-        title?: string;
-        department?: string;
-        lab_name?: string | null;
-        lab_url?: string | null;
-        bio?: string;
-        currently_recruiting?: boolean;
-        recruiting_message?: string | null;
-        desired_experience_level?: "any" | "beginner" | "intermediate" | "advanced";
-        google_scholar_url?: string | null;
-        orcid_url?: string | null;
-      } = {};
+      const desiredExperienceLevel = mapStudentLevelsToSoughtExperience(input.soughtStudentLevels);
 
-      if (input.displayName !== undefined) profileUpdates.display_name = input.displayName;
-      if (input.title !== undefined) profileUpdates.title = input.title;
-      if (input.department !== undefined) profileUpdates.department = input.department;
-      if (input.labName !== undefined) profileUpdates.lab_name = input.labName || null;
-      if (input.labUrl !== undefined) profileUpdates.lab_url = cleanOptionalUrl(input.labUrl);
-      if (input.bio !== undefined) profileUpdates.bio = input.bio;
-      if (input.currentlyRecruiting !== undefined) profileUpdates.currently_recruiting = input.currentlyRecruiting;
-      if (input.recruitingMessage !== undefined) {
-        profileUpdates.recruiting_message = cleanOptionalUrl(input.recruitingMessage) ?? null;
-      }
-      if (input.soughtExperienceLevel !== undefined) {
-        profileUpdates.desired_experience_level = input.soughtExperienceLevel;
-      }
-      if (input.googleScholarUrl !== undefined) {
-        profileUpdates.google_scholar_url = cleanOptionalUrl(input.googleScholarUrl);
-      }
-      if (input.orcidUrl !== undefined) profileUpdates.orcid_url = cleanOptionalUrl(input.orcidUrl);
-      if (input.labWebsiteUrl !== undefined) profileUpdates.lab_url = cleanOptionalUrl(input.labWebsiteUrl);
+      const { error: updateError } = await ctx.supabase.from("faculty_profiles").upsert(
+        {
+          user_id: ctx.user.id,
+          display_name: input.displayName,
+          title: input.title,
+          department: input.department,
+          lab_name: input.labName || null,
+          lab_url: cleanOptionalUrl(input.labWebsiteUrl),
+          bio: input.bio,
+          currently_recruiting: input.currentlyRecruiting,
+          recruiting_message: input.currentlyRecruiting ? input.recruitingMessage : null,
+          desired_experience_level: desiredExperienceLevel,
+          sought_student_levels: input.soughtStudentLevels,
+          google_scholar_url: cleanOptionalUrl(input.googleScholarUrl),
+          personal_website_url: cleanOptionalUrl(input.personalWebsiteUrl),
+        },
+        { onConflict: "user_id" },
+      );
 
-      if (Object.keys(profileUpdates).length > 0) {
-        const { error: updateError } = await ctx.supabase
-          .from("faculty_profiles")
-          .upsert({ user_id: ctx.user.id, ...profileUpdates }, { onConflict: "user_id" });
-
-        if (updateError) {
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "Could not update faculty profile.",
-          });
-        }
+      if (updateError) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Could not update faculty profile.",
+        });
       }
 
-      if (input.interests !== undefined) {
-        await replaceInterestSelections(ctx.user.id, input.interests, ctx.supabase);
-      }
-
-      if (input.skills !== undefined) {
-        await replaceSkillSelections(ctx.user.id, input.skills, ctx.supabase);
-      }
+      await replaceInterestSelections(ctx.user.id, input.interests, ctx.supabase);
+      await replaceSkillSelections(ctx.user.id, input.skills, ctx.supabase);
 
       return { success: true };
     }),
+
+  getMySignals: protectedProcedure.query(async ({ ctx }) => {
+    let role = normalizeRole(
+      ctx.user.app_metadata && typeof ctx.user.app_metadata === "object" && "role" in ctx.user.app_metadata
+        ? String((ctx.user.app_metadata as Record<string, unknown>).role)
+        : null,
+    );
+
+    let institutionalVerified =
+      ctx.user.app_metadata &&
+      typeof ctx.user.app_metadata === "object" &&
+      "institutional_verified" in ctx.user.app_metadata
+        ? Boolean((ctx.user.app_metadata as Record<string, unknown>).institutional_verified)
+        : null;
+
+    if (!role || institutionalVerified === null) {
+      const { data: profileRow, error: profileError } = await ctx.supabase
+        .from("profiles")
+        .select("role, institutional_verified")
+        .eq("id", ctx.user.id)
+        .maybeSingle();
+
+      if (profileError) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Could not verify your profile access.",
+        });
+      }
+
+      role = role ?? normalizeRole(profileRow?.role ?? null);
+      institutionalVerified = institutionalVerified ?? Boolean(profileRow?.institutional_verified);
+    }
+
+    if (role !== "student" || !institutionalVerified) {
+      throw new TRPCError({
+        code: "FORBIDDEN",
+        message: "Only verified students can view signals.",
+      });
+    }
+
+    const adminClient = createAdminClient();
+    const { data: signals, error: signalsError } = await adminClient
+      .from("interest_signals")
+      .select("id, faculty_id, message, status, created_at, reviewed_at")
+      .eq("student_id", ctx.user.id)
+      .order("created_at", { ascending: false });
+
+    if (signalsError) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Could not load your signals.",
+      });
+    }
+
+    const facultyIds = Array.from(new Set((signals ?? []).map((signal) => signal.faculty_id).filter(Boolean)));
+
+    let facultyById = new Map<
+      string,
+      {
+        displayName: string;
+        labName: string | null;
+        department: string | null;
+      }
+    >();
+
+    if (facultyIds.length > 0) {
+      const { data: facultyRows, error: facultyError } = await adminClient
+        .from("faculty_profiles")
+        .select("user_id, display_name, lab_name, department")
+        .in("user_id", facultyIds as string[]);
+
+      if (facultyError) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Could not load faculty data for signals.",
+        });
+      }
+
+      facultyById = new Map(
+        (facultyRows ?? []).map((row) => [
+          row.user_id,
+          {
+            displayName: row.display_name,
+            labName: row.lab_name,
+            department: row.department,
+          },
+        ]),
+      );
+    }
+
+    return (signals ?? []).map((signal) => {
+      const faculty = signal.faculty_id ? facultyById.get(signal.faculty_id) : null;
+      const fallbackLabName = faculty?.displayName ? `${faculty.displayName}'s Lab` : "Lab";
+
+      return {
+        id: signal.id,
+        facultyId: signal.faculty_id ?? "",
+        labName: faculty?.labName?.trim() || fallbackLabName,
+        piName: faculty?.displayName ?? "Professor",
+        department: faculty?.department ?? "Department not listed",
+        message: signal.message ?? "",
+        createdAt: signal.created_at ?? new Date().toISOString(),
+        reviewedAt: signal.reviewed_at ?? null,
+        status: normalizeSignalStatus(signal.status),
+      };
+    });
+  }),
 
   setRecruitingStatus: protectedProcedure
     .input(recruitingStatusInputSchema)

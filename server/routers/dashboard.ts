@@ -15,7 +15,14 @@ type StudentProfileRow = {
   department: string | null;
   availability: (typeof availabilityOptions)[number];
   experience_level: (typeof experienceLevelOptions)[number];
-  preferred_collaboration_type: Array<"research_assistant" | "co_author" | "project_lead">;
+  preferred_collaboration_type: Array<
+    | "research_assistant"
+    | "co_author"
+    | "project_lead"
+    | "independent_project"
+    | "thesis_collaboration"
+    | "casual_mentorship"
+  >;
   lab_experience: boolean;
   bio: string | null;
 };

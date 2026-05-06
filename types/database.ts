@@ -20,7 +20,9 @@ export type Database = {
           lab_name: string | null;
           lab_url: string | null;
           orcid_url: string | null;
+          personal_website_url: string | null;
           recruiting_message: string | null;
+          sought_student_levels: string[];
           title: string | null;
           updated_at: string;
           user_id: string;
@@ -35,7 +37,9 @@ export type Database = {
           lab_name?: string | null;
           lab_url?: string | null;
           orcid_url?: string | null;
+          personal_website_url?: string | null;
           recruiting_message?: string | null;
+          sought_student_levels?: string[];
           title?: string | null;
           updated_at?: string;
           user_id: string;
@@ -50,7 +54,9 @@ export type Database = {
           lab_name?: string | null;
           lab_url?: string | null;
           orcid_url?: string | null;
+          personal_website_url?: string | null;
           recruiting_message?: string | null;
+          sought_student_levels?: string[];
           title?: string | null;
           updated_at?: string;
           user_id?: string;
@@ -71,24 +77,30 @@ export type Database = {
           faculty_id: string | null;
           id: string;
           message: string | null;
+          reviewed_at: string | null;
           status: string | null;
           student_id: string | null;
+          updated_at: string;
         };
         Insert: {
           created_at?: string | null;
           faculty_id?: string | null;
           id?: string;
           message?: string | null;
+          reviewed_at?: string | null;
           status?: string | null;
           student_id?: string | null;
+          updated_at?: string;
         };
         Update: {
           created_at?: string | null;
           faculty_id?: string | null;
           id?: string;
           message?: string | null;
+          reviewed_at?: string | null;
           status?: string | null;
           student_id?: string | null;
+          updated_at?: string;
         };
         Relationships: [
           {
@@ -275,10 +287,13 @@ export type Database = {
           department: string | null;
           display_name: string;
           experience_level: Database["public"]["Enums"]["profile_experience_level"];
+          github_url: string | null;
+          hours_per_week: string | null;
           lab_experience: boolean;
           linkedin_url: string | null;
           orcid_url: string | null;
           preferred_collaboration_type: Database["public"]["Enums"]["collaboration_type"][];
+          start_date_availability: string | null;
           updated_at: string;
           user_id: string;
           website_url: string | null;
@@ -291,10 +306,13 @@ export type Database = {
           department?: string | null;
           display_name: string;
           experience_level?: Database["public"]["Enums"]["profile_experience_level"];
+          github_url?: string | null;
+          hours_per_week?: string | null;
           lab_experience?: boolean;
           linkedin_url?: string | null;
           orcid_url?: string | null;
           preferred_collaboration_type?: Database["public"]["Enums"]["collaboration_type"][];
+          start_date_availability?: string | null;
           updated_at?: string;
           user_id: string;
           website_url?: string | null;
@@ -307,10 +325,13 @@ export type Database = {
           department?: string | null;
           display_name?: string;
           experience_level?: Database["public"]["Enums"]["profile_experience_level"];
+          github_url?: string | null;
+          hours_per_week?: string | null;
           lab_experience?: boolean;
           linkedin_url?: string | null;
           orcid_url?: string | null;
           preferred_collaboration_type?: Database["public"]["Enums"]["collaboration_type"][];
+          start_date_availability?: string | null;
           updated_at?: string;
           user_id?: string;
           website_url?: string | null;
@@ -334,7 +355,13 @@ export type Database = {
       [_ in never]: never;
     };
     Enums: {
-      collaboration_type: "research_assistant" | "co_author" | "project_lead";
+      collaboration_type:
+        | "research_assistant"
+        | "co_author"
+        | "project_lead"
+        | "independent_project"
+        | "thesis_collaboration"
+        | "casual_mentorship";
       faculty_sought_experience_level: "any" | "beginner" | "intermediate" | "advanced";
       profile_availability: "actively_looking" | "open" | "not_available";
       profile_experience_level: "beginner" | "intermediate" | "advanced";

@@ -18,7 +18,9 @@ import { cn } from "@/lib/utils";
 type NavbarUser = {
   email: string | null;
   role: "student" | "faculty" | "researcher" | "coordinator" | "unverified" | null;
+  institutionalVerified: boolean;
   pendingSignalCount: number;
+  recentReviewedSignalCount: number;
 };
 
 type NavbarProps = {
@@ -33,8 +35,12 @@ const baseNavLinks: Array<{ href: string; label: string }> = [
   { href: "/about", label: "About" },
 ];
 
-function canSeeSignals(role: NavbarUser["role"]) {
+function canSeeFacultySignals(role: NavbarUser["role"]) {
   return role === "faculty" || role === "researcher" || role === "coordinator";
+}
+
+function canSeeStudentSignals(user: NavbarUser | null) {
+  return Boolean(user && user.role === "student" && user.institutionalVerified);
 }
 
 function applyTheme(theme: ThemeMode) {
@@ -98,10 +104,27 @@ export function Navbar({ user, initialTheme }: NavbarProps) {
 
   const initials = useMemo(() => emailToInitials(user?.email ?? null), [user?.email]);
   const navLinks = useMemo(() => {
-    const links = [...baseNavLinks];
+    const links: Array<{
+      href: string;
+      label: string;
+      showNotificationDot?: boolean;
+      countBadge?: number;
+    }> = [...baseNavLinks];
 
-    if (user && canSeeSignals(user.role)) {
-      links.push({ href: "/dashboard/faculty", label: "Signals" });
+    if (canSeeStudentSignals(user)) {
+      links.push({
+        href: "/dashboard/signals",
+        label: "My Signals",
+        countBadge: user?.recentReviewedSignalCount ?? 0,
+      });
+    }
+
+    if (user && canSeeFacultySignals(user.role)) {
+      links.push({
+        href: "/dashboard/faculty",
+        label: "Signals",
+        showNotificationDot: user.pendingSignalCount > 0,
+      });
     }
 
     return links;
@@ -147,8 +170,6 @@ export function Navbar({ user, initialTheme }: NavbarProps) {
         <div className="hidden items-center gap-7 md:flex">
           {navLinks.map((link) => {
             const isActive = pathname === link.href;
-            const showNotificationDot =
-              link.href === "/dashboard/faculty" && Boolean(user && user.pendingSignalCount > 0);
 
             return (
               <Link
@@ -160,11 +181,16 @@ export function Navbar({ user, initialTheme }: NavbarProps) {
                 )}
               >
                 <span>{link.label}</span>
-                {showNotificationDot ? (
+                {link.showNotificationDot ? (
                   <span
                     className="absolute -right-3 top-0 inline-flex h-2 w-2 rounded-full bg-red-500"
                     aria-label="New pending signals"
                   />
+                ) : null}
+                {link.countBadge && link.countBadge > 0 ? (
+                  <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/15 px-1.5 text-[11px] font-semibold text-primary">
+                    {link.countBadge > 99 ? "99+" : link.countBadge}
+                  </span>
                 ) : null}
               </Link>
             );
@@ -261,8 +287,6 @@ export function Navbar({ user, initialTheme }: NavbarProps) {
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-1 px-6">
           {navLinks.map((link) => {
             const isActive = pathname === link.href;
-            const showNotificationDot =
-              link.href === "/dashboard/faculty" && Boolean(user && user.pendingSignalCount > 0);
 
             return (
               <Link
@@ -274,8 +298,13 @@ export function Navbar({ user, initialTheme }: NavbarProps) {
                 )}
               >
                 {link.label}
-                {showNotificationDot ? (
+                {link.showNotificationDot ? (
                   <span className="ml-2 inline-flex h-2 w-2 rounded-full bg-red-500 align-middle" />
+                ) : null}
+                {link.countBadge && link.countBadge > 0 ? (
+                  <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/15 px-1.5 text-[11px] font-semibold text-primary">
+                    {link.countBadge > 99 ? "99+" : link.countBadge}
+                  </span>
                 ) : null}
               </Link>
             );

@@ -83,7 +83,14 @@ type StudentProfilePublicRow = {
   department: string | null;
   availability: "actively_looking" | "open" | "not_available";
   experience_level: "beginner" | "intermediate" | "advanced";
-  preferred_collaboration_type: Array<"research_assistant" | "co_author" | "project_lead">;
+  preferred_collaboration_type: Array<
+    | "research_assistant"
+    | "co_author"
+    | "project_lead"
+    | "independent_project"
+    | "thesis_collaboration"
+    | "casual_mentorship"
+  >;
   lab_experience: boolean;
   bio: string | null;
   linkedin_url: string | null;
