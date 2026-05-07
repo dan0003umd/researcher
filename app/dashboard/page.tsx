@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
 import { headers } from "next/headers";
@@ -9,9 +10,16 @@ import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
+import { buildMetadata } from "@/lib/seo";
 import { createClient } from "@/lib/supabase/server";
 import { appRouter } from "@/server/routers";
 import { createTRPCContext } from "@/server/trpc";
+
+export const metadata: Metadata = buildMetadata({
+  title: "Dashboard",
+  description: "Manage your Researcher profile and track your research connections.",
+  path: "/dashboard",
+});
 
 type StudentSignalStatus = "pending" | "reviewed" | "archived";
 

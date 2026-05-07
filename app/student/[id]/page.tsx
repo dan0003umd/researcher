@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { headers } from "next/headers";
@@ -6,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { buildMetadata } from "@/lib/seo";
 import { createClient } from "@/lib/supabase/server";
 import { appRouter } from "@/server/routers";
 import { createTRPCContext } from "@/server/trpc";
@@ -61,6 +63,29 @@ async function createStudentCaller() {
   });
 
   return appRouter.createCaller(context);
+}
+
+export async function generateMetadata({ params }: StudentProfilePageProps): Promise<Metadata> {
+  const { id } = await params;
+  const caller = await createStudentCaller();
+
+  try {
+    const profile = await caller.discover.getStudentProfile({ id });
+    const degree = profile.degreeType ?? "Student";
+    const department = profile.department ?? "University of Maryland";
+
+    return buildMetadata({
+      title: profile.displayName,
+      description: `${degree} - ${department} - student researcher at UMD`,
+      path: `/student/${id}`,
+    });
+  } catch {
+    return buildMetadata({
+      title: "Student Profile",
+      description: "Student researcher at the University of Maryland.",
+      path: `/student/${id}`,
+    });
+  }
 }
 
 export default async function StudentProfilePage({ params }: StudentProfilePageProps) {

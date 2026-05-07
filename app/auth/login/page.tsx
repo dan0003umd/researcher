@@ -1,5 +1,14 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { GoogleSignInButton } from "@/app/auth/login/GoogleSignInButton";
+import { buildMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = buildMetadata({
+  title: "Sign In",
+  description:
+    "Sign in to Researcher with your Google account to access your profile and discover UMD research opportunities.",
+  path: "/auth/login",
+});
 
 export default function LoginPage() {
   return (

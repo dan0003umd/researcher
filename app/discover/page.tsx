@@ -1,6 +1,8 @@
+import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { DiscoverResultsClient } from "@/app/discover/DiscoverResultsClient";
 import { type DiscoverFilterState } from "@/app/discover/DiscoverFilters";
+import { buildMetadata } from "@/lib/seo";
 import { createClient } from "@/lib/supabase/server";
 import { appRouter } from "@/server/routers";
 import { createTRPCContext } from "@/server/trpc";
@@ -8,6 +10,13 @@ import { createTRPCContext } from "@/server/trpc";
 type DiscoverPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
+
+export const metadata: Metadata = buildMetadata({
+  title: "Discover Labs",
+  description:
+    "Browse research labs at the University of Maryland. Filter by department, research area, and recruiting status.",
+  path: "/discover",
+});
 
 function toArray(value: string | string[] | undefined) {
   if (!value) {

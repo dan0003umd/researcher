@@ -1,11 +1,20 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { DeletedAccountBanner } from "@/app/DeletedAccountBanner";
 import { buttonVariants } from "@/components/ui/button";
+import { buildMetadata } from "@/lib/seo";
 import { cn } from "@/lib/utils";
 
 type HomePageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
+
+export const metadata: Metadata = buildMetadata({
+  title: "Find Research Opportunities at UMD",
+  description:
+    "Researcher connects University of Maryland students with faculty labs based on research interests, skills, and availability.",
+  path: "/",
+});
 
 export default async function Home({ searchParams }: HomePageProps) {
   const resolvedSearchParams = await searchParams;

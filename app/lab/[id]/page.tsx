@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { CheckCircle2, ExternalLink } from "lucide-react";
 import { headers } from "next/headers";
@@ -7,6 +8,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { buildMetadata } from "@/lib/seo";
 import { createClient } from "@/lib/supabase/server";
 import { appRouter } from "@/server/routers";
 import { createTRPCContext } from "@/server/trpc";
@@ -69,6 +71,29 @@ async function createLabCaller() {
   });
 
   return appRouter.createCaller(context);
+}
+
+export async function generateMetadata({ params }: LabPageProps): Promise<Metadata> {
+  const { id } = await params;
+  const caller = await createLabCaller();
+
+  try {
+    const labProfile = await caller.discover.getLabProfile({ id });
+    const labTitle = labProfile.labName?.trim() || `${labProfile.piName}'s Lab`;
+    const department = labProfile.department?.trim() || "University of Maryland";
+
+    return buildMetadata({
+      title: labTitle,
+      description: `${labProfile.piName} - ${department} - research lab at the University of Maryland`,
+      path: `/lab/${id}`,
+    });
+  } catch {
+    return buildMetadata({
+      title: "Lab Profile",
+      description: "Research lab at the University of Maryland.",
+      path: `/lab/${id}`,
+    });
+  }
 }
 
 export default async function LabProfilePage({ params }: LabPageProps) {
