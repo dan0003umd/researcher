@@ -13,6 +13,17 @@ const updateSignalStatusInputSchema = z.object({
   status: z.enum(signalStatusOptions),
 });
 
+const studentSignalLookupInputSchema = z.object({
+  studentId: z.string().uuid("Invalid student id."),
+});
+
+const updateRecruitingMessageInputSchema = z.object({
+  message: z
+    .string()
+    .trim()
+    .max(300, "Recruiting message must be 300 characters or less."),
+});
+
 const browseStudentsInputSchema = z.object({
   search: z.string().trim().max(120).optional(),
   interests: z.array(z.number().int().positive()).optional(),
@@ -39,6 +50,7 @@ type SignalRow = {
   message: string | null;
   status: string | null;
   created_at: string | null;
+  reviewed_at: string | null;
 };
 
 type InterestLinkRow = {
@@ -278,6 +290,65 @@ async function loadStudentSkillMap(userIds: string[]) {
 }
 
 export const facultyRouter = createTRPCRouter({
+  getMyLabSummary: protectedProcedure.query(async ({ ctx }) => {
+    await assertFacultyAccess({
+      appMetadata: ctx.user.app_metadata,
+      userId: ctx.user.id,
+      supabase: ctx.supabase,
+    });
+
+    const adminClient = createAdminClient();
+    const { data: profile, error: profileError } = await adminClient
+      .from("faculty_profiles")
+      .select("user_id, lab_name, department, currently_recruiting, recruiting_message")
+      .eq("user_id", ctx.user.id)
+      .maybeSingle();
+
+    if (profileError) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Could not load lab profile summary.",
+      });
+    }
+
+    if (!profile) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Faculty profile not found.",
+      });
+    }
+
+    const { data: signals, error: signalsError } = await adminClient
+      .from("interest_signals")
+      .select("status")
+      .eq("faculty_id", ctx.user.id);
+
+    if (signalsError) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Could not load lab signal stats.",
+      });
+    }
+
+    const normalizedStatuses = (signals ?? []).map((signal) => normalizeSignalStatus(signal.status));
+    const totalSignals = normalizedStatuses.length;
+    const pendingSignals = normalizedStatuses.filter((status) => status === "pending").length;
+    const reviewedSignals = normalizedStatuses.filter((status) => status === "reviewed").length;
+    const archivedSignals = normalizedStatuses.filter((status) => status === "archived").length;
+
+    return {
+      facultyId: ctx.user.id,
+      labName: profile.lab_name?.trim() || null,
+      department: profile.department?.trim() || null,
+      currentlyRecruiting: profile.currently_recruiting,
+      recruitingMessage: profile.recruiting_message ?? "",
+      totalSignals,
+      pendingSignals,
+      reviewedSignals,
+      archivedSignals,
+    };
+  }),
+
   getMyInterestSignals: protectedProcedure.query(async ({ ctx }) => {
     await assertFacultyAccess({
       appMetadata: ctx.user.app_metadata,
@@ -288,7 +359,7 @@ export const facultyRouter = createTRPCRouter({
     const adminClient = createAdminClient();
     const { data: signals, error: signalsError } = await adminClient
       .from("interest_signals")
-      .select("id, student_id, faculty_id, message, status, created_at")
+      .select("id, student_id, faculty_id, message, status, created_at, reviewed_at")
       .eq("faculty_id", ctx.user.id)
       .order("created_at", { ascending: false });
 
@@ -305,14 +376,15 @@ export const facultyRouter = createTRPCRouter({
       return [];
     }
 
-    const [verifiedStudentIds, interestMap] = await Promise.all([
+    const [verifiedStudentIds, interestMap, skillMap] = await Promise.all([
       loadVerifiedStudentIds(studentIds as string[]),
       loadStudentInterestMap(studentIds as string[]),
+      loadStudentSkillMap(studentIds as string[]),
     ]);
 
     const { data: studentProfiles, error: studentProfilesError } = await adminClient
       .from("student_profiles")
-      .select("user_id, display_name, degree_type, year_level")
+      .select("user_id, display_name, degree_type, year_level, department")
       .in("user_id", studentIds as string[]);
 
     if (studentProfilesError) {
@@ -324,7 +396,13 @@ export const facultyRouter = createTRPCRouter({
 
     const profileByUserId = new Map<
       string,
-      { user_id: string; display_name: string; degree_type: string | null; year_level: string | null }
+      {
+        user_id: string;
+        display_name: string;
+        degree_type: string | null;
+        year_level: string | null;
+        department: string | null;
+      }
     >();
     (studentProfiles ?? []).forEach((profile) => {
       profileByUserId.set(profile.user_id, profile);
@@ -342,10 +420,13 @@ export const facultyRouter = createTRPCRouter({
           studentName: profile?.display_name ?? "Student",
           degreeType: profile?.degree_type ?? "Not listed",
           yearLevel: profile?.year_level ?? "Not listed",
+          department: profile?.department ?? "Not listed",
           message: signal.message ?? "",
           createdAt: signal.created_at ?? new Date().toISOString(),
           status: normalizeSignalStatus(signal.status),
+          reviewedAt: signal.reviewed_at,
           topInterests: (interestMap.get(studentId) ?? []).slice(0, 3).map((interest) => interest.name),
+          topSkills: (skillMap.get(studentId) ?? []).slice(0, 3).map((skill) => skill.name),
         };
       });
   }),
@@ -386,6 +467,7 @@ export const facultyRouter = createTRPCRouter({
           status: input.status,
           reviewed_at: input.status === "reviewed" ? new Date().toISOString() : null,
         })
+        .select("id, status, reviewed_at")
         .eq("id", input.signalId);
 
       if (updateError) {
@@ -395,7 +477,137 @@ export const facultyRouter = createTRPCRouter({
         });
       }
 
-      return { success: true };
+      const { data: updatedSignal, error: updatedSignalError } = await adminClient
+        .from("interest_signals")
+        .select("id, status, reviewed_at")
+        .eq("id", input.signalId)
+        .maybeSingle();
+
+      if (updatedSignalError || !updatedSignal) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Could not load updated signal status.",
+        });
+      }
+
+      return {
+        id: updatedSignal.id,
+        status: normalizeSignalStatus(updatedSignal.status),
+        reviewedAt: updatedSignal.reviewed_at,
+      };
+    }),
+
+  getSignalForStudent: protectedProcedure
+    .input(studentSignalLookupInputSchema)
+    .query(async ({ ctx, input }) => {
+      await assertFacultyAccess({
+        appMetadata: ctx.user.app_metadata,
+        userId: ctx.user.id,
+        supabase: ctx.supabase,
+      });
+
+      const adminClient = createAdminClient();
+      const { data: signal, error } = await adminClient
+        .from("interest_signals")
+        .select("id, status, message, created_at, reviewed_at")
+        .eq("faculty_id", ctx.user.id)
+        .eq("student_id", input.studentId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Could not load student signal status.",
+        });
+      }
+
+      if (!signal) {
+        return null;
+      }
+
+      return {
+        id: signal.id,
+        status: normalizeSignalStatus(signal.status),
+        message: signal.message ?? "",
+        createdAt: signal.created_at ?? new Date().toISOString(),
+        reviewedAt: signal.reviewed_at,
+      };
+    }),
+
+  toggleRecruitingStatus: protectedProcedure.mutation(async ({ ctx }) => {
+    await assertFacultyAccess({
+      appMetadata: ctx.user.app_metadata,
+      userId: ctx.user.id,
+      supabase: ctx.supabase,
+    });
+
+    const adminClient = createAdminClient();
+    const { data: profile, error: profileError } = await adminClient
+      .from("faculty_profiles")
+      .select("currently_recruiting")
+      .eq("user_id", ctx.user.id)
+      .maybeSingle();
+
+    if (profileError) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Could not load recruiting status.",
+      });
+    }
+
+    if (!profile) {
+      throw new TRPCError({
+        code: "NOT_FOUND",
+        message: "Faculty profile not found.",
+      });
+    }
+
+    const nextRecruiting = !profile.currently_recruiting;
+    const { error: updateError } = await adminClient
+      .from("faculty_profiles")
+      .update({ currently_recruiting: nextRecruiting })
+      .eq("user_id", ctx.user.id);
+
+    if (updateError) {
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "Could not update recruiting status.",
+      });
+    }
+
+    return {
+      currentlyRecruiting: nextRecruiting,
+    };
+  }),
+
+  updateRecruitingMessage: protectedProcedure
+    .input(updateRecruitingMessageInputSchema)
+    .mutation(async ({ ctx, input }) => {
+      await assertFacultyAccess({
+        appMetadata: ctx.user.app_metadata,
+        userId: ctx.user.id,
+        supabase: ctx.supabase,
+      });
+
+      const adminClient = createAdminClient();
+      const message = input.message.trim();
+      const { error } = await adminClient
+        .from("faculty_profiles")
+        .update({ recruiting_message: message.length > 0 ? message : null })
+        .eq("user_id", ctx.user.id);
+
+      if (error) {
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "Could not update recruiting message.",
+        });
+      }
+
+      return {
+        recruitingMessage: message,
+      };
     }),
 
   browseStudents: protectedProcedure

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
+import { FacultySignalBanner } from "@/app/student/[id]/FacultySignalBanner";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,6 +46,10 @@ const collaborationLabelMap: Record<string, string> = {
   thesis_collaboration: "Thesis Collaboration",
   casual_mentorship: "Casual Mentorship",
 };
+
+function isFacultyRole(role: string | null | undefined) {
+  return role === "faculty" || role === "researcher" || role === "coordinator";
+}
 
 async function createStudentCaller() {
   const headerStore = await headers();
@@ -96,6 +101,16 @@ export default async function StudentProfilePage({ params }: StudentProfilePageP
     data: { user },
   } = await supabase.auth.getUser();
 
+  let viewerRole =
+    user?.app_metadata && typeof user.app_metadata === "object" && "role" in user.app_metadata
+      ? String((user.app_metadata as Record<string, unknown>).role)
+      : null;
+
+  if (user && !viewerRole) {
+    const { data: ownProfile } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
+    viewerRole = ownProfile?.role ?? null;
+  }
+
   let profile: Awaited<ReturnType<typeof caller.discover.getStudentProfile>>;
   try {
     profile = await caller.discover.getStudentProfile({ id });
@@ -107,12 +122,23 @@ export default async function StudentProfilePage({ params }: StudentProfilePageP
     throw error;
   }
 
+  let pendingSignalForFaculty: Awaited<ReturnType<typeof caller.faculty.getSignalForStudent>> | null = null;
+  if (user && user.id !== id && isFacultyRole(viewerRole)) {
+    try {
+      pendingSignalForFaculty = await caller.faculty.getSignalForStudent({ studentId: id });
+    } catch {
+      pendingSignalForFaculty = null;
+    }
+  }
+
+  const backHref = isFacultyRole(viewerRole) ? "/dashboard/faculty" : "/dashboard";
+
   return (
     <section className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Link href="/dashboard/faculty" className={cn(buttonVariants({ variant: "outline" }), "inline-flex")}>
+        <Link href={backHref} className={cn(buttonVariants({ variant: "outline" }), "inline-flex")}>
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Back
+          Back to Dashboard
         </Link>
         {user?.id === id ? (
           <Link href="/profile/edit" className={cn(buttonVariants({ variant: "default" }), "inline-flex")}>
@@ -120,6 +146,10 @@ export default async function StudentProfilePage({ params }: StudentProfilePageP
           </Link>
         ) : null}
       </div>
+
+      {pendingSignalForFaculty && pendingSignalForFaculty.status === "pending" ? (
+        <FacultySignalBanner signalId={pendingSignalForFaculty.id} createdAt={pendingSignalForFaculty.createdAt} />
+      ) : null}
 
       <Card>
         <CardHeader className="space-y-3">
@@ -178,6 +208,9 @@ export default async function StudentProfilePage({ params }: StudentProfilePageP
             <h2 className="text-lg font-semibold tracking-tight">Collaboration Preferences</h2>
             <div className="space-y-1 text-sm text-muted-foreground">
               <p>Experience level: {profile.experienceLevel}</p>
+              <p>Availability: {availabilityLabelMap[profile.availability]}</p>
+              <p>Hours per week: {profile.hoursPerWeek ?? "Not listed"}</p>
+              <p>Start date: {profile.startDateAvailability ?? "Not listed"}</p>
               <p>
                 Collaboration types:{" "}
                 {profile.preferredCollaborationType.length > 0
@@ -226,7 +259,18 @@ export default async function StudentProfilePage({ params }: StudentProfilePageP
                   <ExternalLink className="h-3.5 w-3.5" />
                 </Link>
               ) : null}
-              {!profile.linkedinUrl && !profile.orcidUrl && !profile.websiteUrl ? (
+              {profile.githubUrl ? (
+                <Link
+                  href={profile.githubUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
+                >
+                  GitHub
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </Link>
+              ) : null}
+              {!profile.linkedinUrl && !profile.orcidUrl && !profile.websiteUrl && !profile.githubUrl ? (
                 <p className="text-sm text-muted-foreground">No links listed.</p>
               ) : null}
             </div>

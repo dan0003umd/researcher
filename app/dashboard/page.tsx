@@ -22,6 +22,7 @@ export const metadata: Metadata = buildMetadata({
 });
 
 type StudentSignalStatus = "pending" | "reviewed" | "archived";
+type UserRole = "student" | "faculty" | "researcher" | "coordinator" | "unverified" | null;
 
 const signalStatusLabelMap: Record<StudentSignalStatus, string> = {
   pending: "Pending",
@@ -49,6 +50,10 @@ function formatSignalDate(value: string) {
     day: "numeric",
     year: "numeric",
   });
+}
+
+function isFacultyRole(role: UserRole) {
+  return role === "faculty" || role === "researcher" || role === "coordinator";
 }
 
 async function createDashboardCaller() {
@@ -128,6 +133,16 @@ export default async function DashboardPage() {
 
   const caller = await createDashboardCaller();
   const data = await caller.dashboard.getDashboardData();
+
+  if (isFacultyRole(data.role)) {
+    if (data.mode === "no_profile") {
+      redirect("/onboarding/faculty-profile");
+    }
+
+    if (data.mode === "faculty") {
+      redirect("/dashboard/faculty");
+    }
+  }
 
   if (data.mode === "unverified") {
     return (

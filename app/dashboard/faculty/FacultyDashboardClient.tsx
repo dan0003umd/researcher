@@ -1,26 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { StudentCard } from "@/components/shared/cards/StudentCard";
+import { useMemo, useState } from "react";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import { trpcClient } from "@/lib/trpc/client";
 import { cn } from "@/lib/utils";
-
-type InterestGroup = {
-  category: string;
-  interests: Array<{
-    id: number;
-    name: string;
-    category: string;
-    parent_id: number | null;
-  }>;
-};
 
 type SignalStatus = "pending" | "reviewed" | "archived";
 
@@ -30,28 +18,40 @@ type InterestSignalItem = {
   studentName: string;
   degreeType: string;
   yearLevel: string;
+  department: string;
   topInterests: string[];
+  topSkills: string[];
   message: string;
   createdAt: string;
+  reviewedAt: string | null;
   status: SignalStatus;
 };
 
-type StudentBrowseItem = {
-  id: string;
-  displayName: string;
-  degreeType: string;
-  yearLevel: string;
-  department: string;
-  availability: "actively_looking" | "open" | "not_available";
-  experienceLevel: "beginner" | "intermediate" | "advanced";
-  topInterests: string[];
-  topSkills: string[];
+type LabSummary = {
+  facultyId: string;
+  labName: string | null;
+  department: string | null;
+  currentlyRecruiting: boolean;
+  recruitingMessage: string;
+  totalSignals: number;
+  pendingSignals: number;
+  reviewedSignals: number;
+  archivedSignals: number;
 };
 
 type FacultyDashboardClientProps = {
+  labSummary: LabSummary;
   initialSignals: InterestSignalItem[];
-  initialStudents: StudentBrowseItem[];
-  interestGroups: InterestGroup[];
+};
+
+const statusTabs = ["pending", "all", "reviewed", "archived"] as const;
+type StatusTab = (typeof statusTabs)[number];
+
+const statusTabLabelMap: Record<StatusTab, string> = {
+  all: "All",
+  pending: "Pending",
+  reviewed: "Reviewed",
+  archived: "Archived",
 };
 
 const statusLabelMap: Record<SignalStatus, string> = {
@@ -68,204 +68,404 @@ const statusStyleMap: Record<SignalStatus, string> = {
     "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300",
 };
 
-function formatTimeAgo(dateString: string) {
-  const date = new Date(dateString);
-  const diffMs = Date.now() - date.getTime();
-
-  if (!Number.isFinite(diffMs)) {
-    return "just now";
+function formatDate(value: string | null) {
+  if (!value) {
+    return "Unknown";
   }
 
-  const minute = 60 * 1000;
-  const hour = 60 * minute;
-  const day = 24 * hour;
-  const week = 7 * day;
-
-  if (diffMs < minute) {
-    return "just now";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Unknown";
   }
 
-  if (diffMs < hour) {
-    const minutes = Math.max(1, Math.floor(diffMs / minute));
-    return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function getInitials(name: string) {
+  const segments = name.trim().split(/\s+/).filter(Boolean);
+  if (segments.length === 0) {
+    return "S";
+  }
+  if (segments.length === 1) {
+    return segments[0].slice(0, 2).toUpperCase();
+  }
+  return `${segments[0][0]}${segments[1][0]}`.toUpperCase();
+}
+
+function dispatchPendingCountDelta(delta: number) {
+  if (typeof window === "undefined" || delta === 0) {
+    return;
   }
 
-  if (diffMs < day) {
-    const hours = Math.max(1, Math.floor(diffMs / hour));
-    return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  window.dispatchEvent(
+    new CustomEvent("faculty-pending-signals-change", {
+      detail: { delta },
+    }),
+  );
+}
+
+function EmptyState({ tab }: { tab: StatusTab }) {
+  if (tab === "pending") {
+    return <p className="text-sm text-muted-foreground">No pending signals. Check back later.</p>;
   }
 
-  if (diffMs < week) {
-    const days = Math.max(1, Math.floor(diffMs / day));
-    return `${days} day${days === 1 ? "" : "s"} ago`;
+  if (tab === "reviewed") {
+    return <p className="text-sm text-muted-foreground">No reviewed signals yet.</p>;
   }
 
-  const weeks = Math.max(1, Math.floor(diffMs / week));
-  return `${weeks} week${weeks === 1 ? "" : "s"} ago`;
+  if (tab === "archived") {
+    return <p className="text-sm text-muted-foreground">No archived signals.</p>;
+  }
+
+  return (
+    <p className="text-sm text-muted-foreground">
+      No signals received yet. Make sure your lab profile is complete and recruiting is enabled.
+    </p>
+  );
+}
+
+function QuickActionsSection({
+  currentlyRecruiting,
+  recruitingMessage,
+  onToggleRecruiting,
+  onSaveMessage,
+  isToggling,
+  isSavingMessage,
+  updateError,
+}: {
+  currentlyRecruiting: boolean;
+  recruitingMessage: string;
+  onToggleRecruiting: () => Promise<void>;
+  onSaveMessage: (message: string) => Promise<void>;
+  isToggling: boolean;
+  isSavingMessage: boolean;
+  updateError: string | null;
+}) {
+  const [isEditingMessage, setIsEditingMessage] = useState(false);
+  const [draftMessage, setDraftMessage] = useState(recruitingMessage);
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-xl">Quick Actions</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        <div className="space-y-2">
+          <p className="text-sm font-semibold">Toggle Recruiting Status</p>
+          <p className="text-sm text-muted-foreground">
+            Current status:{" "}
+            <span className="font-medium text-foreground">
+              {currentlyRecruiting ? "Actively Recruiting" : "Not Recruiting"}
+            </span>
+          </p>
+          <Button type="button" onClick={() => void onToggleRecruiting()} disabled={isToggling} className="w-full">
+            {isToggling
+              ? "Updating..."
+              : currentlyRecruiting
+                ? "Set as Not Recruiting"
+                : "Set as Actively Recruiting"}
+          </Button>
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-sm font-semibold">Update Recruiting Message</p>
+          {!isEditingMessage ? (
+            <button
+              type="button"
+              className="w-full rounded-md border border-border/80 bg-background px-3 py-2 text-left text-sm hover:bg-muted/40"
+              onClick={() => {
+                setDraftMessage(recruitingMessage);
+                setIsEditingMessage(true);
+              }}
+            >
+              {recruitingMessage.trim().length > 0 ? recruitingMessage : "Click to add a recruiting message."}
+            </button>
+          ) : (
+            <Textarea
+              value={draftMessage}
+              maxLength={300}
+              onChange={(event) => setDraftMessage(event.target.value)}
+              onBlur={() => {
+                setIsEditingMessage(false);
+                void onSaveMessage(draftMessage.trim());
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  setIsEditingMessage(false);
+                  void onSaveMessage(draftMessage.trim());
+                }
+              }}
+              className="min-h-24"
+              autoFocus
+            />
+          )}
+          <p className="text-xs text-muted-foreground">{draftMessage.length}/300</p>
+          {isSavingMessage ? <p className="text-xs text-muted-foreground">Saving message...</p> : null}
+        </div>
+
+        {updateError ? <p className="text-sm text-destructive">{updateError}</p> : null}
+      </CardContent>
+    </Card>
+  );
 }
 
 export function FacultyDashboardClient({
+  labSummary,
   initialSignals,
-  initialStudents,
-  interestGroups,
 }: FacultyDashboardClientProps) {
-  const [activeTab, setActiveTab] = useState<"signals" | "students">("signals");
+  const [activeTab, setActiveTab] = useState<StatusTab>("pending");
   const [signals, setSignals] = useState(initialSignals);
-  const [signalError, setSignalError] = useState<string | null>(null);
   const [updatingSignalId, setUpdatingSignalId] = useState<string | null>(null);
+  const [currentlyRecruiting, setCurrentlyRecruiting] = useState(labSummary.currentlyRecruiting);
+  const [recruitingMessage, setRecruitingMessage] = useState(labSummary.recruitingMessage);
+  const [isTogglingRecruiting, setIsTogglingRecruiting] = useState(false);
+  const [isSavingMessage, setIsSavingMessage] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
 
-  const [students, setStudents] = useState(initialStudents);
-  const [studentsLoading, setStudentsLoading] = useState(false);
-  const [studentsError, setStudentsError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [experienceLevel, setExperienceLevel] = useState<"" | "beginner" | "intermediate" | "advanced">("");
-  const [availability, setAvailability] = useState<"" | "actively_looking" | "open" | "not_available">("");
-  const [selectedInterestIds, setSelectedInterestIds] = useState<number[]>([]);
-
-  const flatInterestList = useMemo(
-    () => interestGroups.flatMap((group) => group.interests.map((interest) => interest.id)),
-    [interestGroups],
-  );
-
-  const toggleInterest = (interestId: number) => {
-    setSelectedInterestIds((previous) =>
-      previous.includes(interestId)
-        ? previous.filter((value) => value !== interestId)
-        : [...previous, interestId],
-    );
-  };
-
-  const clearStudentFilters = () => {
-    setSearch("");
-    setExperienceLevel("");
-    setAvailability("");
-    setSelectedInterestIds([]);
-  };
-
-  useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      void (async () => {
-        setStudentsLoading(true);
-        setStudentsError(null);
-
-        try {
-          const nextStudents = await trpcClient.faculty.browseStudents.query({
-            search: search.trim().length > 0 ? search.trim() : undefined,
-            interests: selectedInterestIds.length > 0 ? selectedInterestIds : undefined,
-            experienceLevel: experienceLevel || undefined,
-            availability: availability || undefined,
-          });
-          setStudents(nextStudents);
-        } catch (error) {
-          const message = error instanceof Error ? error.message : "Could not load student results.";
-          setStudentsError(message);
-        } finally {
-          setStudentsLoading(false);
-        }
-      })();
-    }, 250);
-
-    return () => {
-      window.clearTimeout(timeout);
+  const signalStats = useMemo(() => {
+    const pending = signals.filter((signal) => signal.status === "pending").length;
+    const reviewed = signals.filter((signal) => signal.status === "reviewed").length;
+    const archived = signals.filter((signal) => signal.status === "archived").length;
+    return {
+      total: signals.length,
+      pending,
+      reviewed,
+      archived,
     };
-  }, [availability, experienceLevel, search, selectedInterestIds]);
+  }, [signals]);
+
+  const filteredSignals = useMemo(() => {
+    if (activeTab === "all") {
+      return signals;
+    }
+    return signals.filter((signal) => signal.status === activeTab);
+  }, [activeTab, signals]);
 
   const setSignalStatus = async (signalId: string, status: "reviewed" | "archived") => {
-    setSignalError(null);
+    setUpdateError(null);
     setUpdatingSignalId(signalId);
 
+    const previousSignal = signals.find((signal) => signal.id === signalId);
+    const wasPending = previousSignal?.status === "pending";
+
     try {
-      await trpcClient.faculty.updateSignalStatus.mutate({ signalId, status });
+      const updatedSignal = await trpcClient.faculty.updateSignalStatus.mutate({
+        signalId,
+        status,
+      });
+
       setSignals((previous) =>
-        previous.map((signal) => (signal.id === signalId ? { ...signal, status } : signal)),
+        previous.map((signal) =>
+          signal.id === signalId
+            ? {
+                ...signal,
+                status: updatedSignal.status,
+                reviewedAt: updatedSignal.reviewedAt ?? null,
+              }
+            : signal,
+        ),
       );
+
+      if (wasPending && (status === "reviewed" || status === "archived")) {
+        dispatchPendingCountDelta(-1);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not update signal status.";
-      setSignalError(message);
+      setUpdateError(message);
     } finally {
       setUpdatingSignalId(null);
     }
   };
 
+  const toggleRecruitingStatus = async () => {
+    setUpdateError(null);
+    setIsTogglingRecruiting(true);
+    try {
+      const next = await trpcClient.faculty.toggleRecruitingStatus.mutate();
+      setCurrentlyRecruiting(next.currentlyRecruiting);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not update recruiting status.";
+      setUpdateError(message);
+    } finally {
+      setIsTogglingRecruiting(false);
+    }
+  };
+
+  const saveRecruitingMessage = async (message: string) => {
+    setUpdateError(null);
+    setIsSavingMessage(true);
+    try {
+      const result = await trpcClient.faculty.updateRecruitingMessage.mutate({ message });
+      setRecruitingMessage(result.recruitingMessage);
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : "Could not update recruiting message.";
+      setUpdateError(messageText);
+    } finally {
+      setIsSavingMessage(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          variant={activeTab === "signals" ? "default" : "outline"}
-          onClick={() => setActiveTab("signals")}
-        >
-          Interest Signals
-        </Button>
-        <Button
-          type="button"
-          variant={activeTab === "students" ? "default" : "outline"}
-          onClick={() => setActiveTab("students")}
-        >
-          Browse Students
-        </Button>
-      </div>
+      <Card>
+        <CardHeader className="space-y-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <CardTitle className="text-2xl">{labSummary.labName || "Research Lab"}</CardTitle>
+              <p className="text-sm text-muted-foreground">{labSummary.department || "Department not listed"}</p>
+            </div>
+            <Badge
+              className={
+                currentlyRecruiting
+                  ? "border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200"
+                  : "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300"
+              }
+            >
+              {currentlyRecruiting ? "Actively Recruiting" : "Not Recruiting"}
+            </Badge>
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-md border border-border/80 bg-card/70 p-3">
+              <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Total Signals</p>
+              <p className="mt-1 text-2xl font-semibold">{signalStats.total}</p>
+            </div>
+            <div className="rounded-md border border-border/80 bg-card/70 p-3">
+              <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Pending Review</p>
+              <p className="mt-1 text-2xl font-semibold">{signalStats.pending}</p>
+            </div>
+            <div className="rounded-md border border-border/80 bg-card/70 p-3">
+              <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Reviewed</p>
+              <p className="mt-1 text-2xl font-semibold">{signalStats.reviewed}</p>
+            </div>
+            <div className="rounded-md border border-border/80 bg-card/70 p-3">
+              <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Archived</p>
+              <p className="mt-1 text-2xl font-semibold">{signalStats.archived}</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/profile/faculty/edit" className={buttonVariants({ variant: "outline" })}>
+              Edit Lab Profile
+            </Link>
+            <Link href={`/lab/${labSummary.facultyId}`} className={buttonVariants({ variant: "secondary" })}>
+              View Public Lab Page
+            </Link>
+          </div>
+        </CardHeader>
+      </Card>
 
-      {activeTab === "signals" ? (
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
         <section className="space-y-4">
           <header className="space-y-1">
-            <h2 className="text-2xl font-semibold tracking-tight">Interest Signals</h2>
-            <p className="text-sm text-muted-foreground">
-              Students who reached out to your lab, sorted by newest first.
-            </p>
+            <h2 className="text-2xl font-semibold tracking-tight">Student Interest Signals</h2>
+            <p className="text-sm text-muted-foreground">Students who expressed interest in your lab</p>
           </header>
 
-          {signalError ? <p className="text-sm text-destructive">{signalError}</p> : null}
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {statusTabs.map((tab) => (
+              <Button
+                key={tab}
+                type="button"
+                variant={activeTab === tab ? "default" : "outline"}
+                className="shrink-0 rounded-full"
+                onClick={() => setActiveTab(tab)}
+              >
+                {statusTabLabelMap[tab]}
+              </Button>
+            ))}
+          </div>
 
-          {signals.length === 0 ? (
+          {filteredSignals.length === 0 ? (
             <Card>
               <CardContent className="p-6">
-                <p className="text-base font-medium">No interest signals yet.</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  No interest signals yet. Make sure your profile shows you&apos;re open to students.
-                </p>
+                <EmptyState tab={activeTab} />
               </CardContent>
             </Card>
           ) : (
-            signals.map((signal) => (
+            filteredSignals.map((signal) => (
               <Card key={signal.id}>
                 <CardHeader className="space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="space-y-1">
-                      <CardTitle className="text-xl">{signal.studentName}</CardTitle>
-                      <p className="text-sm text-muted-foreground">
-                        {signal.degreeType} - {signal.yearLevel}
-                      </p>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <Avatar className="h-10 w-10">
+                        <AvatarFallback>{getInitials(signal.studentName)}</AvatarFallback>
+                      </Avatar>
+                      <div className="space-y-1">
+                        <CardTitle className="text-xl">{signal.studentName}</CardTitle>
+                        <p className="text-sm text-muted-foreground">
+                          {signal.degreeType} · {signal.yearLevel}
+                        </p>
+                        <p className="text-sm text-muted-foreground">{signal.department}</p>
+                      </div>
                     </div>
-                    <Badge className={statusStyleMap[signal.status]}>{statusLabelMap[signal.status]}</Badge>
-                  </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {signal.topInterests.length > 0 ? (
-                      signal.topInterests.map((interest) => (
-                        <Badge key={interest} variant="secondary">
-                          {interest}
+                    <div className="flex flex-col items-end gap-2">
+                      <Badge className={statusStyleMap[signal.status]}>{statusLabelMap[signal.status]}</Badge>
+                      {signal.status === "reviewed" && signal.reviewedAt ? (
+                        <Badge variant="outline">Reviewed on {formatDate(signal.reviewedAt)}</Badge>
+                      ) : null}
+                      {signal.status === "archived" ? (
+                        <Badge variant="outline" className="text-muted-foreground">
+                          Archived
                         </Badge>
-                      ))
-                    ) : (
-                      <p className="text-sm text-muted-foreground">No listed interests.</p>
-                    )}
+                      ) : null}
+                    </div>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  <p className="whitespace-pre-line text-sm leading-6 text-foreground/95">
-                    {signal.message || "No message provided."}
-                  </p>
-                  <p className="text-xs text-muted-foreground">{formatTimeAgo(signal.createdAt)}</p>
-                </CardContent>
-                <CardFooter className="flex flex-wrap justify-between gap-3">
-                  <div className="flex flex-wrap items-center gap-2">
+                <CardContent className="space-y-4">
+                  <p className="whitespace-pre-line text-sm leading-7 text-foreground">{signal.message || "No message provided."}</p>
+
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+                      Research Interests
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {signal.topInterests.length > 0 ? (
+                        signal.topInterests.map((interest) => (
+                          <Badge key={`${signal.id}-${interest}`} variant="secondary">
+                            {interest}
+                          </Badge>
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No listed interests.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">Skills</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {signal.topSkills.length > 0 ? (
+                        signal.topSkills.map((skill) => (
+                          <Badge key={`${signal.id}-${skill}`} variant="outline">
+                            {skill}
+                          </Badge>
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground">No listed skills.</p>
+                      )}
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-muted-foreground">Sent on {formatDate(signal.createdAt)}</p>
+
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Link
+                      href={`/student/${signal.studentId}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className={cn(buttonVariants({ variant: "secondary" }), "w-full sm:w-auto")}
+                    >
+                      View Profile
+                    </Link>
                     <Button
                       type="button"
                       variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        void setSignalStatus(signal.id, "reviewed");
-                      }}
+                      className="w-full sm:w-auto"
+                      onClick={() => void setSignalStatus(signal.id, "reviewed")}
                       disabled={updatingSignalId === signal.id || signal.status === "reviewed"}
                     >
                       Mark Reviewed
@@ -273,151 +473,43 @@ export function FacultyDashboardClient({
                     <Button
                       type="button"
                       variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        void setSignalStatus(signal.id, "archived");
-                      }}
+                      className="w-full sm:w-auto"
+                      onClick={() => void setSignalStatus(signal.id, "archived")}
                       disabled={updatingSignalId === signal.id || signal.status === "archived"}
                     >
                       Archive
                     </Button>
                   </div>
-                  <Link
-                    href={`/student/${signal.studentId}`}
-                    className={cn(buttonVariants({ variant: "secondary", size: "sm" }))}
-                  >
-                    View Profile
-                  </Link>
-                </CardFooter>
+                </CardContent>
               </Card>
             ))
           )}
         </section>
-      ) : null}
 
-      {activeTab === "students" ? (
-        <section className="space-y-5">
-          <header className="space-y-1">
-            <h2 className="text-2xl font-semibold tracking-tight">Browse Students</h2>
-            <p className="text-sm text-muted-foreground">Search and filter verified student profiles.</p>
-          </header>
+        <aside className="hidden lg:block">
+          <QuickActionsSection
+            currentlyRecruiting={currentlyRecruiting}
+            recruitingMessage={recruitingMessage}
+            onToggleRecruiting={toggleRecruitingStatus}
+            onSaveMessage={saveRecruitingMessage}
+            isToggling={isTogglingRecruiting}
+            isSavingMessage={isSavingMessage}
+            updateError={updateError}
+          />
+        </aside>
+      </div>
 
-          <Card>
-            <CardContent className="space-y-4 p-5">
-              <div className="grid gap-3 md:grid-cols-3">
-                <div className="space-y-1">
-                  <label htmlFor="student-search" className="text-sm font-medium">
-                    Search
-                  </label>
-                  <Input
-                    id="student-search"
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Name, department, or keyword"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label htmlFor="student-experience" className="text-sm font-medium">
-                    Experience Level
-                  </label>
-                  <Select
-                    id="student-experience"
-                    value={experienceLevel}
-                    onChange={(event) =>
-                      setExperienceLevel(event.target.value as "" | "beginner" | "intermediate" | "advanced")
-                    }
-                  >
-                    <option value="">Any</option>
-                    <option value="beginner">Beginner</option>
-                    <option value="intermediate">Intermediate</option>
-                    <option value="advanced">Advanced</option>
-                  </Select>
-                </div>
-
-                <div className="space-y-1">
-                  <label htmlFor="student-availability" className="text-sm font-medium">
-                    Availability
-                  </label>
-                  <Select
-                    id="student-availability"
-                    value={availability}
-                    onChange={(event) =>
-                      setAvailability(
-                        event.target.value as "" | "actively_looking" | "open" | "not_available",
-                      )
-                    }
-                  >
-                    <option value="">Any</option>
-                    <option value="actively_looking">Actively Looking</option>
-                    <option value="open">Open to It</option>
-                    <option value="not_available">Not Available</option>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-medium">Research Interests</p>
-                  <Button type="button" variant="ghost" size="sm" onClick={clearStudentFilters}>
-                    Clear filters
-                  </Button>
-                </div>
-                <div className="max-h-52 space-y-3 overflow-y-auto rounded-md border border-border/90 bg-card/60 p-3">
-                  {interestGroups.map((group) => (
-                    <fieldset key={group.category} className="space-y-1.5">
-                      <legend className="text-xs font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                        {group.category}
-                      </legend>
-                      <div className="grid gap-1 sm:grid-cols-2 md:grid-cols-3">
-                        {group.interests.map((interest) => (
-                          <label key={interest.id} className="flex items-center gap-2 text-sm">
-                            <Checkbox
-                              checked={selectedInterestIds.includes(interest.id)}
-                              onChange={() => toggleInterest(interest.id)}
-                            />
-                            <span>{interest.name}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </fieldset>
-                  ))}
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="flex items-center justify-between gap-3">
-            <p className="text-sm text-muted-foreground">
-              {studentsLoading ? "Loading students..." : `${students.length} students found`}
-            </p>
-            {selectedInterestIds.length > 0 || search || experienceLevel || availability ? (
-              <p className="text-xs text-muted-foreground">
-                {selectedInterestIds.filter((id) => flatInterestList.includes(id)).length} interest filters active
-              </p>
-            ) : null}
-          </div>
-
-          {studentsError ? <p className="text-sm text-destructive">{studentsError}</p> : null}
-
-          {students.length === 0 && !studentsLoading ? (
-            <Card>
-              <CardContent className="p-6">
-                <p className="text-base font-medium">No students match your filters.</p>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Try removing one or more filters to broaden results.
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {students.map((student) => (
-                <StudentCard key={student.id} student={student} />
-              ))}
-            </div>
-          )}
-        </section>
-      ) : null}
+      <div className="lg:hidden">
+        <QuickActionsSection
+          currentlyRecruiting={currentlyRecruiting}
+          recruitingMessage={recruitingMessage}
+          onToggleRecruiting={toggleRecruitingStatus}
+          onSaveMessage={saveRecruitingMessage}
+          isToggling={isTogglingRecruiting}
+          isSavingMessage={isSavingMessage}
+          updateError={updateError}
+        />
+      </div>
     </div>
   );
 }

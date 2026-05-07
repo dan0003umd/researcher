@@ -87,6 +87,11 @@ export function Navbar({ user, initialTheme }: NavbarProps) {
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [hasScrolled, setHasScrolled] = useState(false);
+  const [facultyPendingCount, setFacultyPendingCount] = useState(user?.pendingSignalCount ?? 0);
+
+  const isVerifiedFaculty = Boolean(
+    user && user.institutionalVerified && canSeeFacultySignals(user.role),
+  );
 
   useEffect(() => {
     const handleScroll = () => {
@@ -101,6 +106,32 @@ export function Navbar({ user, initialTheme }: NavbarProps) {
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    setFacultyPendingCount(user?.pendingSignalCount ?? 0);
+  }, [user?.pendingSignalCount]);
+
+  useEffect(() => {
+    if (!isVerifiedFaculty) {
+      return;
+    }
+
+    const handlePendingSignalCountChange = (event: Event) => {
+      const customEvent = event as CustomEvent<{ delta?: number; count?: number }>;
+      if (typeof customEvent.detail?.count === "number") {
+        setFacultyPendingCount(Math.max(0, customEvent.detail.count));
+        return;
+      }
+
+      const delta = customEvent.detail?.delta;
+      if (typeof delta === "number") {
+        setFacultyPendingCount((previous) => Math.max(0, previous + delta));
+      }
+    };
+
+    window.addEventListener("faculty-pending-signals-change", handlePendingSignalCountChange);
+    return () => window.removeEventListener("faculty-pending-signals-change", handlePendingSignalCountChange);
+  }, [isVerifiedFaculty]);
 
   const initials = useMemo(() => emailToInitials(user?.email ?? null), [user?.email]);
   const navLinks = useMemo(() => {
@@ -211,8 +242,13 @@ export function Navbar({ user, initialTheme }: NavbarProps) {
 
           {user ? (
             <>
-              <Link href="/dashboard" className={buttonVariants({ variant: "ghost" })}>
-                Dashboard
+              <Link href="/dashboard" className={cn(buttonVariants({ variant: "ghost" }), "relative")}>
+                <span>Dashboard</span>
+                {isVerifiedFaculty && facultyPendingCount > 0 ? (
+                  <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/15 px-1.5 text-[11px] font-semibold text-primary">
+                    {facultyPendingCount > 99 ? "99+" : facultyPendingCount}
+                  </span>
+                ) : null}
               </Link>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -313,8 +349,16 @@ export function Navbar({ user, initialTheme }: NavbarProps) {
           <div className="mt-2 border-t border-border/60 pt-3">
             {user ? (
               <div className="space-y-2">
-                <Link href="/dashboard" className={cn(buttonVariants({ variant: "outline" }), "w-full justify-center")}>
-                  Dashboard
+                <Link
+                  href="/dashboard"
+                  className={cn(buttonVariants({ variant: "outline" }), "w-full justify-center")}
+                >
+                  <span>Dashboard</span>
+                  {isVerifiedFaculty && facultyPendingCount > 0 ? (
+                    <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/15 px-1.5 text-[11px] font-semibold text-primary">
+                      {facultyPendingCount > 99 ? "99+" : facultyPendingCount}
+                    </span>
+                  ) : null}
                 </Link>
                 <Button
                   type="button"

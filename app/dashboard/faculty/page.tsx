@@ -52,11 +52,18 @@ export default async function FacultyDashboardPage() {
   }
 
   const caller = await createFacultyCaller();
-  const [initialSignals, initialStudents, interestGroups] = await Promise.all([
-    caller.faculty.getMyInterestSignals(),
-    caller.faculty.browseStudents({}),
-    caller.discover.getResearchInterestFilters(),
-  ]);
+  let labSummary: Awaited<ReturnType<typeof caller.faculty.getMyLabSummary>>;
+  try {
+    labSummary = await caller.faculty.getMyLabSummary();
+  } catch (error) {
+    if (error instanceof Error && error.message.toLowerCase().includes("not found")) {
+      redirect("/onboarding/faculty-profile");
+    }
+
+    throw error;
+  }
+
+  const initialSignals = await caller.faculty.getMyInterestSignals();
 
   return (
     <section className="space-y-6">
@@ -69,9 +76,8 @@ export default async function FacultyDashboardPage() {
       </header>
 
       <FacultyDashboardClient
+        labSummary={labSummary}
         initialSignals={initialSignals}
-        initialStudents={initialStudents}
-        interestGroups={interestGroups}
       />
     </section>
   );

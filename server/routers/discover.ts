@@ -96,6 +96,9 @@ type StudentProfilePublicRow = {
   linkedin_url: string | null;
   orcid_url: string | null;
   website_url: string | null;
+  hours_per_week: string | null;
+  start_date_availability: string | null;
+  github_url: string | null;
 };
 
 type StudentSignalSummary = {
@@ -743,7 +746,7 @@ export const discoverRouter = createTRPCRouter({
     const { data: studentProfile, error: studentProfileError } = await adminClient
       .from("student_profiles")
       .select(
-        "user_id, display_name, year_level, degree_type, department, availability, experience_level, preferred_collaboration_type, lab_experience, bio, linkedin_url, orcid_url, website_url",
+        "user_id, display_name, year_level, degree_type, department, availability, experience_level, preferred_collaboration_type, lab_experience, bio, linkedin_url, orcid_url, website_url, hours_per_week, start_date_availability, github_url",
       )
       .eq("user_id", input.id)
       .maybeSingle();
@@ -882,6 +885,9 @@ export const discoverRouter = createTRPCRouter({
       linkedinUrl: profile.linkedin_url,
       orcidUrl: profile.orcid_url,
       websiteUrl: profile.website_url,
+      hoursPerWeek: profile.hours_per_week,
+      startDateAvailability: profile.start_date_availability,
+      githubUrl: profile.github_url,
       interests,
       skills,
     };
