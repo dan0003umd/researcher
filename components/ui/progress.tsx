@@ -2,9 +2,10 @@ import { cn } from "@/lib/utils";
 
 type ProgressProps = React.ComponentProps<"div"> & {
   value: number;
+  indicatorClassName?: string;
 };
 
-function Progress({ value, className, ...props }: ProgressProps) {
+function Progress({ value, className, indicatorClassName, ...props }: ProgressProps) {
   const safeValue = Math.max(0, Math.min(100, value));
 
   return (
@@ -14,7 +15,7 @@ function Progress({ value, className, ...props }: ProgressProps) {
       {...props}
     >
       <div
-        className="h-full bg-primary transition-all duration-300"
+        className={cn("h-full bg-primary transition-all duration-300", indicatorClassName)}
         style={{ width: `${safeValue}%` }}
       />
     </div>

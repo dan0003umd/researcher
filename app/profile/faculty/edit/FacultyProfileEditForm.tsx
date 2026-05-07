@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Check, Loader2 } from "lucide-react";
 import { z } from "zod";
 import { ResearchInterestSelector } from "@/app/onboarding/shared/ResearchInterestSelector";
 import { SkillSelector, type SkillProficiency } from "@/app/onboarding/shared/SkillSelector";
@@ -189,6 +190,7 @@ export function FacultyProfileEditForm({
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(initialNotice ?? null);
+  const [showSavedIndicator, setShowSavedIndicator] = useState(false);
 
   const allInterests = useMemo(() => interestGroups.flatMap((group) => group.interests), [interestGroups]);
   const allSkills = useMemo(() => skillGroups.flatMap((group) => group.skills), [skillGroups]);
@@ -427,11 +429,14 @@ export function FacultyProfileEditForm({
     }
 
     setIsSaving(true);
+    setShowSavedIndicator(false);
 
     try {
       await trpcClient.profile.updateFacultyProfile.mutate(parsed.data);
       setToastMessage("Profile updated successfully");
+      setShowSavedIndicator(true);
       window.setTimeout(() => setToastMessage(null), 2500);
+      window.setTimeout(() => setShowSavedIndicator(false), 1500);
       router.refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not update your lab profile.";
@@ -524,7 +529,7 @@ export function FacultyProfileEditForm({
   };
 
   return (
-    <div className="relative mx-auto w-full max-w-4xl space-y-6 pb-24 md:pb-6">
+    <div className="faculty-focus relative mx-auto w-full max-w-4xl space-y-6 pb-24 md:pb-6">
       {toastMessage ? (
         <div className="fixed right-4 top-20 z-50 rounded-md border border-emerald-300 bg-emerald-100 px-4 py-2 text-sm font-medium text-emerald-900 shadow-sm">
           {toastMessage}
@@ -795,15 +800,39 @@ export function FacultyProfileEditForm({
       </div>
 
       <div className="hidden justify-end md:flex">
-        <Button type="button" onClick={handleSave} disabled={isSaving}>
-          {isSaving ? "Saving..." : "Save"}
+        <Button type="button" variant="faculty" onClick={handleSave} disabled={isSaving}>
+          {isSaving ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Saving...
+            </>
+          ) : showSavedIndicator ? (
+            <>
+              <Check className="mr-2 h-4 w-4" />
+              Saved
+            </>
+          ) : (
+            "Save"
+          )}
         </Button>
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border/80 bg-background/95 p-4 shadow-[0_-8px_20px_rgba(0,0,0,0.08)] backdrop-blur md:hidden">
         <div className="mx-auto w-full max-w-4xl">
-          <Button type="button" onClick={handleSave} disabled={isSaving} className="w-full">
-            {isSaving ? "Saving..." : "Save"}
+          <Button type="button" variant="faculty" onClick={handleSave} disabled={isSaving} className="w-full">
+            {isSaving ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : showSavedIndicator ? (
+              <>
+                <Check className="mr-2 h-4 w-4" />
+                Saved
+              </>
+            ) : (
+              "Save"
+            )}
           </Button>
         </div>
       </div>

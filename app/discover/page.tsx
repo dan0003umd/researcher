@@ -124,9 +124,9 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
 
   return (
     <section className="space-y-6">
-      <header className="space-y-2">
+      <header className="marketing-headings space-y-2">
         <p className="text-sm font-medium uppercase tracking-[0.14em] text-muted-foreground">Discover</p>
-        <h1 className="text-3xl font-semibold tracking-tight">Browse UMD Labs and Faculty</h1>
+        <h1 className="text-3xl font-normal tracking-tight">Browse UMD Labs and Faculty</h1>
         <p className="text-sm text-muted-foreground">{labsResponse.total} labs available to browse</p>
       </header>
 

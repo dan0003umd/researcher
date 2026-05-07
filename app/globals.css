@@ -7,8 +7,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter);
-  --font-heading: var(--font-instrument-serif);
+  --font-sans: var(--font-body);
+  --font-heading: var(--font-display);
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
@@ -49,6 +49,9 @@
 }
 
 :root {
+  --font-display: var(--font-instrument-serif), Georgia, serif;
+  --font-body: var(--font-geist), "Inter", system-ui, sans-serif;
+
   --background: #f7f6f2;
   --foreground: #28251d;
   --card: #fdfcf9;
@@ -56,6 +59,7 @@
   --popover: #fdfcf9;
   --popover-foreground: #28251d;
   --primary: #01696f;
+  --primary-hover: #01585e;
   --primary-foreground: #f7f6f2;
   --secondary: #ece8dd;
   --secondary-foreground: #38352e;
@@ -81,6 +85,20 @@
   --sidebar-accent-foreground: #28251d;
   --sidebar-border: #d5d0c4;
   --sidebar-ring: #01696f;
+
+  --color-bg: var(--background);
+  --color-surface: var(--card);
+  --color-surface-offset: var(--muted);
+  --color-text: var(--foreground);
+  --color-text-muted: var(--muted-foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-border: var(--border);
+  --color-error: var(--destructive);
+  --color-error-highlight: color-mix(in oklab, var(--destructive) 12%, transparent);
+  --color-blue: #2d6dd7;
+  --color-faculty-primary: #1e3a5f;
+  --color-faculty-primary-hover: #2d5282;
 }
 
 [data-theme="dark"] {
@@ -91,6 +109,7 @@
   --popover: #1d2018;
   --popover-foreground: #f4f0e6;
   --primary: #2ab0b5;
+  --primary-hover: #21979b;
   --primary-foreground: #072f31;
   --secondary: #262a21;
   --secondary-foreground: #dfdacd;
@@ -117,6 +136,18 @@
   --sidebar-ring: #2ab0b5;
 }
 
+@keyframes navbar-badge-pulse {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.3);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -126,14 +157,56 @@
     @apply scroll-smooth font-sans;
   }
 
+  body,
+  p,
+  span,
+  label,
+  input,
+  button,
+  textarea,
+  select {
+    font-family: var(--font-body);
+    font-size: 0.9375rem;
+    line-height: 1.6;
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: var(--font-inter), Inter, "Segoe UI", sans-serif;
   }
 
   h1,
+  h2,
+  h3 {
+    font-family: var(--font-body);
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    color: var(--color-text);
+  }
+
+  h1 {
+    font-size: 1.5rem;
+  }
+
   h2 {
-    font-family: var(--font-instrument-serif), Georgia, serif;
+    font-size: 1.125rem;
+  }
+
+  h3 {
+    font-size: 1rem;
+    font-weight: 500;
+  }
+
+  label {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    text-transform: none;
+  }
+
+  button {
+    font-size: 0.875rem;
+    font-weight: 500;
+    letter-spacing: 0.01em;
   }
 
   a {
@@ -153,5 +226,32 @@
     text-decoration: underline;
     text-decoration-color: var(--primary);
     text-underline-offset: 2px;
+  }
+}
+
+@layer components {
+  .marketing-headings h1,
+  .marketing-headings h2,
+  .marketing-headings h3 {
+    font-family: var(--font-display);
+    font-weight: 400;
+    letter-spacing: -0.02em;
+  }
+
+  .dashboard-surface {
+    background-color: var(--color-bg);
+    background-image: radial-gradient(oklch(0.5 0.01 200 / 0.04) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+
+  .navbar-badge-pulse {
+    animation: navbar-badge-pulse 300ms ease;
+  }
+
+  .faculty-focus [data-slot="input"]:focus-visible,
+  .faculty-focus [data-slot="textarea"]:focus-visible,
+  .faculty-focus [data-slot="select"]:focus-visible {
+    border-color: #2d5282;
+    box-shadow: 0 0 0 3px oklch(0.25 0.08 240 / 0.12);
   }
 }

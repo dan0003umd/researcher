@@ -137,9 +137,9 @@ export default async function LabProfilePage({ params }: LabPageProps) {
               <Avatar className="h-14 w-14 text-base">
                 <AvatarFallback>{resolveInitials(labProfile.piName)}</AvatarFallback>
               </Avatar>
-              <div className="space-y-2">
+              <div className="marketing-headings space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <CardTitle className="text-2xl">{labProfile.piName}</CardTitle>
+                  <CardTitle className="text-2xl font-normal">{labProfile.piName}</CardTitle>
                   {labProfile.verified ? (
                     <Badge className="border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
                       <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
@@ -188,14 +188,14 @@ export default async function LabProfilePage({ params }: LabPageProps) {
         </CardHeader>
 
         <CardContent className="space-y-8">
-          <div className="space-y-3">
+          <div className="marketing-headings space-y-3">
             <h2 className="text-lg font-semibold tracking-tight">About this lab</h2>
             <p className="whitespace-pre-line text-sm leading-7 text-muted-foreground">
               {labProfile.bio?.trim() || "No bio has been added yet."}
             </p>
           </div>
 
-          <div className="space-y-3">
+          <div className="marketing-headings space-y-3">
             <h2 className="text-lg font-semibold tracking-tight">Research Interests</h2>
             <div className="flex flex-wrap gap-2">
               {labProfile.interests.length > 0 ? (
@@ -210,7 +210,7 @@ export default async function LabProfilePage({ params }: LabPageProps) {
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="marketing-headings space-y-4">
             <h2 className="text-lg font-semibold tracking-tight">Currently Seeking</h2>
             <div className="grid gap-4 rounded-lg border border-border/90 bg-card/60 p-4 sm:grid-cols-2">
               <div className="space-y-1">

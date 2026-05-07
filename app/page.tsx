@@ -25,7 +25,7 @@ export default async function Home({ searchParams }: HomePageProps) {
     <div className="space-y-20 pb-10 sm:space-y-24">
       {deleted ? <DeletedAccountBanner /> : null}
 
-      <section className="space-y-7 pt-8 sm:pt-14">
+      <section className="marketing-headings space-y-7 pt-8 sm:pt-14">
         <p className="text-sm font-medium uppercase tracking-[0.16em] text-muted-foreground">
           UMD &middot; AIM &middot; UMIACS
         </p>
@@ -48,7 +48,7 @@ export default async function Home({ searchParams }: HomePageProps) {
         </div>
       </section>
 
-      <section className="space-y-8">
+      <section className="marketing-headings space-y-8">
         <h2 className="text-3xl tracking-tight sm:text-4xl">Built for how research actually works</h2>
         <div className="grid gap-6 md:grid-cols-3">
           <article className="space-y-3 rounded-xl border border-border/90 bg-card/70 p-6">
@@ -75,7 +75,7 @@ export default async function Home({ searchParams }: HomePageProps) {
         </div>
       </section>
 
-      <section className="grid gap-8 md:grid-cols-2">
+      <section className="marketing-headings grid gap-8 md:grid-cols-2">
         <article className="space-y-4 rounded-xl border border-border/90 bg-card/70 p-7">
           <h2 className="text-3xl tracking-tight">For Students</h2>
           <ul className="space-y-2 text-sm leading-7 text-muted-foreground">
@@ -94,7 +94,7 @@ export default async function Home({ searchParams }: HomePageProps) {
         </article>
       </section>
 
-      <section className="rounded-2xl border border-border/90 bg-card/80 px-6 py-10 text-center sm:px-10">
+      <section className="marketing-headings rounded-2xl border border-border/90 bg-card/80 px-6 py-10 text-center sm:px-10">
         <div className="mx-auto max-w-2xl space-y-4">
           <h2 className="text-3xl tracking-tight sm:text-4xl">Ready to find your research home?</h2>
           <Link href="/auth/login" className={cn(buttonVariants({ size: "lg" }), "inline-flex")}>

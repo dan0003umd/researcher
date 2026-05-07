@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Check, Loader2 } from "lucide-react";
 import { ResearchInterestSelector } from "@/app/onboarding/shared/ResearchInterestSelector";
 import { SkillSelector, type SkillProficiency } from "@/app/onboarding/shared/SkillSelector";
 import { Badge } from "@/components/ui/badge";
@@ -129,6 +130,7 @@ export function ProfileOnboardingWizard() {
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
+  const [showSubmitSuccess, setShowSubmitSuccess] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -527,10 +529,15 @@ export function ProfileOnboardingWizard() {
     }
 
     setIsSubmitting(true);
+    setShowSubmitSuccess(false);
     setGlobalError(null);
 
     try {
       await trpcClient.profile.createStudentProfile.mutate(parsed.data);
+      setShowSubmitSuccess(true);
+      await new Promise((resolve) => {
+        window.setTimeout(resolve, 350);
+      });
       router.push("/dashboard");
       router.refresh();
     } catch (error) {
@@ -986,7 +993,19 @@ export function ProfileOnboardingWizard() {
             </Button>
           ) : (
             <Button type="button" onClick={submitProfile} disabled={isSubmitting}>
-              {isSubmitting ? "Saving profile..." : "Submit profile"}
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving profile...
+                </>
+              ) : showSubmitSuccess ? (
+                <>
+                  <Check className="mr-2 h-4 w-4" />
+                  Submitted
+                </>
+              ) : (
+                "Submit profile"
+              )}
             </Button>
           )}
         </CardFooter>

@@ -275,7 +275,7 @@ export function DiscoverResultsClient({
               value={queryInput}
               onChange={(event) => setQueryInput(event.target.value)}
               placeholder="Search labs, topics, or faculty..."
-              className="h-11 rounded-lg border-border/90 pl-10 pr-10 focus-visible:ring-primary"
+              className="h-11 pl-10 pr-10"
             />
             {queryInput.trim().length > 0 ? (
               <button
@@ -328,13 +328,9 @@ export function DiscoverResultsClient({
               <Button type="button" variant="outline" onClick={clearSearch}>
                 Clear search
               </Button>
-              <button
-                type="button"
-                onClick={clearAllFilters}
-                className="inline-flex h-9 items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium shadow-xs hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              >
+              <Button type="button" variant="outline" onClick={clearAllFilters}>
                 Clear all filters
-              </button>
+              </Button>
             </div>
           </div>
         ) : (

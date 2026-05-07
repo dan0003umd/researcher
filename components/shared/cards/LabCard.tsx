@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
 
 export type LabCardInterest = {
   id: number;
@@ -86,54 +88,60 @@ export function LabCard({ lab, canExpressInterest = false, highlightQuery = "" }
 
   return (
     <article className="h-full">
-      <Link href={`/lab/${lab.id}`} className="block h-full" aria-label={`View ${lab.piName}'s lab`}>
-        <Card className="h-full min-h-[280px] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
-          <CardHeader className="space-y-3">
-            <div className="flex flex-wrap items-center gap-2">
-              <CardTitle className="text-lg leading-tight">{renderHighlightedText(lab.piName, normalizedQuery)}</CardTitle>
-              {lab.verified ? (
-                <Badge className="border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
-                  <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
-                  UMD Verified
-                </Badge>
-              ) : null}
-              {lab.currentlyRecruiting ? (
-                <Badge className="border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
-                  Open to students
-                </Badge>
-              ) : null}
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm font-medium text-foreground/95">
-                {renderHighlightedText(lab.labName?.trim() || "Research Lab", normalizedQuery)}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {renderHighlightedText(lab.department?.trim() || "Department not listed", normalizedQuery)}
-              </p>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex min-h-8 flex-wrap gap-1.5">
-              {visibleInterests.map((interest) => (
-                <Badge key={interest.id} variant={interest.isPrimary ? "default" : "secondary"}>
-                  {interest.name}
-                </Badge>
-              ))}
-              {hiddenInterestCount > 0 ? <Badge variant="outline">+{hiddenInterestCount} more</Badge> : null}
-              {lab.interests.length === 0 ? (
-                <p className="text-xs text-muted-foreground">No interests listed yet</p>
-              ) : null}
-            </div>
-            <p className="text-sm leading-6 text-muted-foreground">{getBioExcerpt(lab.bio)}</p>
-          </CardContent>
-          <CardFooter className="mt-auto items-center justify-between gap-3">
-            <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
-              {experienceLevelLabel[lab.experienceLevelSought]}
-            </p>
-            {canExpressInterest ? <Badge variant="outline">Express Interest</Badge> : null}
-          </CardFooter>
-        </Card>
-      </Link>
+      <Card className="h-full min-h-[280px]">
+        <CardHeader className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle className="font-[var(--font-display)] text-[1rem] font-normal leading-tight">
+              {renderHighlightedText(lab.labName?.trim() || "Research Lab", normalizedQuery)}
+            </CardTitle>
+            <Badge className={lab.currentlyRecruiting ? "border-teal-200 bg-teal-50 text-teal-700" : "border-gray-200 bg-gray-50 text-gray-500"}>
+              {lab.currentlyRecruiting ? "Actively Recruiting" : "Not Recruiting"}
+            </Badge>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-[0.8125rem] text-muted-foreground">{renderHighlightedText(lab.piName, normalizedQuery)}</p>
+            <Badge className="border-border bg-[var(--color-surface-offset)] text-[var(--color-text-muted)]">
+              {renderHighlightedText(lab.department?.trim() || "Department not listed", normalizedQuery)}
+            </Badge>
+            {lab.verified ? (
+              <Badge className="border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
+                <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
+                UMD Verified
+              </Badge>
+            ) : null}
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex min-h-8 flex-wrap gap-1.5">
+            {visibleInterests.map((interest) => (
+              <Badge
+                key={interest.id}
+                className={interest.isPrimary ? "border-[oklch(from_var(--color-primary)_l_c_h_/_0.2)] bg-[oklch(from_var(--color-primary)_l_c_h_/_0.12)] text-primary" : "border-border bg-[var(--color-surface-offset)] text-[var(--color-text-muted)]"}
+              >
+                {interest.name}
+              </Badge>
+            ))}
+            {hiddenInterestCount > 0 ? <Badge className="border-border bg-transparent text-[var(--color-text-muted)]">+{hiddenInterestCount} more</Badge> : null}
+            {lab.interests.length === 0 ? <p className="text-xs text-muted-foreground">No interests listed yet</p> : null}
+          </div>
+          <p className="text-sm leading-6 text-muted-foreground">{getBioExcerpt(lab.bio)}</p>
+        </CardContent>
+        <CardFooter className="mt-auto flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+            {experienceLevelLabel[lab.experienceLevelSought]}
+          </p>
+          <div className="flex w-full items-center gap-2 sm:w-auto">
+            {canExpressInterest ? <Badge className="border-border bg-transparent text-[var(--color-text-muted)]">Express Interest</Badge> : null}
+            <Link
+              href={`/lab/${lab.id}`}
+              className={cn(buttonVariants({ variant: "ghost" }), "w-full justify-center sm:w-auto")}
+              aria-label={`View ${lab.piName}'s lab`}
+            >
+              View Lab
+            </Link>
+          </div>
+        </CardFooter>
+      </Card>
     </article>
   );
 }

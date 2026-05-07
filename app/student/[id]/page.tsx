@@ -153,9 +153,9 @@ export default async function StudentProfilePage({ params }: StudentProfilePageP
 
       <Card>
         <CardHeader className="space-y-3">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="marketing-headings flex flex-wrap items-center justify-between gap-3">
             <div className="space-y-1">
-              <CardTitle className="text-3xl">{profile.displayName}</CardTitle>
+              <CardTitle className="text-3xl font-normal">{profile.displayName}</CardTitle>
               <p className="text-sm text-muted-foreground">
                 {profile.yearLevel ?? "Year not listed"} - {profile.degreeType ?? "Degree not listed"}
               </p>

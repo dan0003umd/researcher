@@ -43,6 +43,24 @@ function canSeeStudentSignals(user: NavbarUser | null) {
   return Boolean(user && user.role === "student" && user.institutionalVerified);
 }
 
+function resolveRoleBadge(role: NavbarUser["role"]) {
+  if (role === "student") {
+    return {
+      label: "Student",
+      className: "bg-primary text-primary-foreground",
+    };
+  }
+
+  if (canSeeFacultySignals(role)) {
+    return {
+      label: "Faculty",
+      className: "bg-[#1e3a5f] text-white",
+    };
+  }
+
+  return null;
+}
+
 function applyTheme(theme: ThemeMode) {
   document.documentElement.setAttribute("data-theme", theme);
 }
@@ -88,6 +106,10 @@ export function Navbar({ user, initialTheme }: NavbarProps) {
   const [isMobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [hasScrolled, setHasScrolled] = useState(false);
   const [facultyPendingCount, setFacultyPendingCount] = useState(user?.pendingSignalCount ?? 0);
+  const [shouldPulseCount, setShouldPulseCount] = useState(false);
+  const roleBadge = resolveRoleBadge(user?.role ?? null);
+  const isFacultyUser = Boolean(user && canSeeFacultySignals(user.role));
+  const activeTextClass = isFacultyUser ? "text-[#2d5282]" : "text-primary";
 
   const isVerifiedFaculty = Boolean(
     user && user.institutionalVerified && canSeeFacultySignals(user.role),
@@ -106,6 +128,16 @@ export function Navbar({ user, initialTheme }: NavbarProps) {
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (facultyPendingCount === (user?.pendingSignalCount ?? 0)) {
+      return;
+    }
+
+    setShouldPulseCount(true);
+    const timeoutId = window.setTimeout(() => setShouldPulseCount(false), 320);
+    return () => window.clearTimeout(timeoutId);
+  }, [facultyPendingCount, user?.pendingSignalCount]);
 
   useEffect(() => {
     setFacultyPendingCount(user?.pendingSignalCount ?? 0);
@@ -186,13 +218,13 @@ export function Navbar({ user, initialTheme }: NavbarProps) {
   return (
     <header
       className={cn(
-        "sticky top-0 z-50 border-b border-border/55 transition-all duration-200",
+        "sticky top-0 z-50 h-14 border-b transition-all duration-200",
         hasScrolled
-          ? "bg-background/85 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-background/80"
-          : "bg-background/95",
+          ? "border-[oklch(from_var(--color-text)_l_c_h_/_0.06)] bg-[oklch(from_var(--color-bg)_l_c_h_/_0.85)] shadow-sm backdrop-blur-xl"
+          : "border-[oklch(from_var(--color-text)_l_c_h_/_0.06)] bg-[oklch(from_var(--color-bg)_l_c_h_/_0.85)] backdrop-blur-xl",
       )}
     >
-      <nav className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
+      <nav className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-6">
         <Link href="/" className="flex items-center gap-3">
           <MinimalRMark />
           <span className="font-heading text-2xl leading-none tracking-tight">Researcher</span>
@@ -201,17 +233,27 @@ export function Navbar({ user, initialTheme }: NavbarProps) {
         <div className="hidden items-center gap-7 md:flex">
           {navLinks.map((link) => {
             const isActive = pathname === link.href;
+            const activeClassForLink =
+              isActive && isFacultyUser && link.href.startsWith("/dashboard") ? "text-[#2d5282]" : activeTextClass;
 
             return (
               <Link
                 key={link.href}
                 href={link.href}
                 className={cn(
-                  "relative text-sm font-medium transition-colors",
-                  isActive ? "text-primary" : "text-muted-foreground hover:text-foreground",
+                  "relative text-[0.875rem] font-[450] transition-colors",
+                  isActive ? activeClassForLink : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 <span>{link.label}</span>
+                {isActive ? (
+                  <span
+                    className={cn(
+                      "absolute -bottom-1 left-0 h-0.5 w-full rounded-full",
+                      isFacultyUser && link.href.startsWith("/dashboard") ? "bg-[#2d5282]" : "bg-primary",
+                    )}
+                  />
+                ) : null}
                 {link.showNotificationDot ? (
                   <span
                     className="absolute -right-3 top-0 inline-flex h-2 w-2 rounded-full bg-red-500"
@@ -219,7 +261,12 @@ export function Navbar({ user, initialTheme }: NavbarProps) {
                   />
                 ) : null}
                 {link.countBadge && link.countBadge > 0 ? (
-                  <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/15 px-1.5 text-[11px] font-semibold text-primary">
+                  <span
+                    className={cn(
+                      "ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/15 px-1.5 text-[11px] font-semibold text-primary",
+                      shouldPulseCount ? "navbar-badge-pulse" : "",
+                    )}
+                  >
                     {link.countBadge > 99 ? "99+" : link.countBadge}
                   </span>
                 ) : null}
@@ -245,39 +292,51 @@ export function Navbar({ user, initialTheme }: NavbarProps) {
               <Link href="/dashboard" className={cn(buttonVariants({ variant: "ghost" }), "relative")}>
                 <span>Dashboard</span>
                 {isVerifiedFaculty && facultyPendingCount > 0 ? (
-                  <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/15 px-1.5 text-[11px] font-semibold text-primary">
+                  <span
+                    className={cn(
+                      "ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/15 px-1.5 text-[11px] font-semibold text-primary",
+                      shouldPulseCount ? "navbar-badge-pulse" : "",
+                    )}
+                  >
                     {facultyPendingCount > 99 ? "99+" : facultyPendingCount}
                   </span>
                 ) : null}
               </Link>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    className="rounded-full text-xs font-semibold"
-                    aria-label="Open profile menu"
-                  >
-                    {initials}
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel>{user.email ?? "Signed in"}</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onSelect={(event) => {
-                      event.preventDefault();
-                      if (!isSigningOut) {
-                        void handleSignOut();
-                      }
-                    }}
-                    disabled={isSigningOut}
-                  >
-                    {isSigningOut ? "Signing out..." : "Sign Out"}
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              <div className="flex items-center gap-2">
+                {roleBadge ? (
+                  <span className={cn("rounded-full px-2 py-1 text-[0.6875rem] font-semibold", roleBadge.className)}>
+                    {roleBadge.label}
+                  </span>
+                ) : null}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      className="rounded-full text-xs font-semibold"
+                      aria-label="Open profile menu"
+                    >
+                      {initials}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuLabel>{user.email ?? "Signed in"}</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onSelect={(event) => {
+                        event.preventDefault();
+                        if (!isSigningOut) {
+                          void handleSignOut();
+                        }
+                      }}
+                      disabled={isSigningOut}
+                    >
+                      {isSigningOut ? "Signing out..." : "Sign Out"}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
             </>
           ) : (
             <Link
@@ -323,14 +382,16 @@ export function Navbar({ user, initialTheme }: NavbarProps) {
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-1 px-6">
           {navLinks.map((link) => {
             const isActive = pathname === link.href;
+            const activeClassForLink =
+              isActive && isFacultyUser && link.href.startsWith("/dashboard") ? "text-[#2d5282]" : activeTextClass;
 
             return (
               <Link
                 key={link.href}
                 href={link.href}
                 className={cn(
-                  "relative rounded-md px-2 py-2 text-sm font-medium",
-                  isActive ? "text-primary" : "text-muted-foreground hover:text-foreground",
+                  "relative rounded-md px-2 py-2 text-[0.875rem] font-[450]",
+                  isActive ? activeClassForLink : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 {link.label}
@@ -338,7 +399,12 @@ export function Navbar({ user, initialTheme }: NavbarProps) {
                   <span className="ml-2 inline-flex h-2 w-2 rounded-full bg-red-500 align-middle" />
                 ) : null}
                 {link.countBadge && link.countBadge > 0 ? (
-                  <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/15 px-1.5 text-[11px] font-semibold text-primary">
+                  <span
+                    className={cn(
+                      "ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/15 px-1.5 text-[11px] font-semibold text-primary",
+                      shouldPulseCount ? "navbar-badge-pulse" : "",
+                    )}
+                  >
                     {link.countBadge > 99 ? "99+" : link.countBadge}
                   </span>
                 ) : null}
@@ -355,11 +421,23 @@ export function Navbar({ user, initialTheme }: NavbarProps) {
                 >
                   <span>Dashboard</span>
                   {isVerifiedFaculty && facultyPendingCount > 0 ? (
-                    <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/15 px-1.5 text-[11px] font-semibold text-primary">
+                    <span
+                      className={cn(
+                        "ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary/15 px-1.5 text-[11px] font-semibold text-primary",
+                        shouldPulseCount ? "navbar-badge-pulse" : "",
+                      )}
+                    >
                       {facultyPendingCount > 99 ? "99+" : facultyPendingCount}
                     </span>
                   ) : null}
                 </Link>
+                {roleBadge ? (
+                  <div className="flex justify-center">
+                    <span className={cn("rounded-full px-2 py-1 text-[0.6875rem] font-semibold", roleBadge.className)}>
+                      {roleBadge.label}
+                    </span>
+                  </div>
+                ) : null}
                 <Button
                   type="button"
                   variant="ghost"

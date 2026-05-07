@@ -245,8 +245,8 @@ export function ResearchInterestSelector({
               key={interest}
               className={
                 isPrimary
-                  ? "inline-flex items-center gap-1 rounded-full border border-primary bg-primary px-3 py-1 text-xs font-medium text-primary-foreground"
-                  : "inline-flex items-center gap-1 rounded-full border border-primary bg-background px-3 py-1 text-xs font-medium text-primary"
+                  ? "inline-flex items-center gap-1 rounded-full border border-[oklch(from_var(--color-primary)_l_c_h_/_0.2)] bg-[oklch(from_var(--color-primary)_l_c_h_/_0.12)] px-2.5 py-1 text-[0.75rem] font-medium text-primary"
+                  : "inline-flex items-center gap-1 rounded-full border border-border bg-[var(--color-surface-offset)] px-2.5 py-1 text-[0.75rem] font-medium text-[var(--color-text-muted)]"
               }
             >
               <button type="button" onClick={() => togglePrimary(interest)} className="truncate">

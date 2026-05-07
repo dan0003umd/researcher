@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, GraduationCap } from "lucide-react";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { RecruitingStatusToggle } from "@/app/dashboard/RecruitingStatusToggle";
@@ -31,11 +31,11 @@ const signalStatusLabelMap: Record<StudentSignalStatus, string> = {
 };
 
 const signalStatusStyleMap: Record<StudentSignalStatus, string> = {
-  pending: "border-amber-300 bg-amber-100 text-amber-900 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-200",
+  pending: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-200",
   reviewed:
-    "border-sky-300 bg-sky-100 text-sky-900 dark:border-sky-700 dark:bg-sky-900/40 dark:text-sky-200",
+    "border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-800 dark:bg-teal-900/30 dark:text-teal-200",
   archived:
-    "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300",
+    "border-gray-200 bg-gray-50 text-gray-500 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-300",
 };
 
 function formatSignalDate(value: string) {
@@ -81,6 +81,7 @@ function ProfileCompletenessCard(props: {
   setupPath: string;
   editPath: string;
   editLabel: string;
+  progressClassName?: string;
 }) {
   const isComplete = props.percentage >= 100;
 
@@ -94,7 +95,7 @@ function ProfileCompletenessCard(props: {
           </Link>
         </div>
         <p className="text-sm text-muted-foreground">{props.percentage}% complete</p>
-        <Progress value={props.percentage} />
+        <Progress value={props.percentage} indicatorClassName={props.progressClassName} />
       </CardHeader>
       <CardContent className="space-y-3">
         {isComplete ? (
@@ -146,7 +147,7 @@ export default async function DashboardPage() {
 
   if (data.mode === "unverified") {
     return (
-      <section className="mx-auto max-w-xl">
+      <section className="dashboard-surface -mx-6 mx-auto max-w-xl px-6 pb-6">
         <Card>
           <CardHeader>
             <CardTitle className="text-2xl">Complete your verification to get started</CardTitle>
@@ -170,7 +171,7 @@ export default async function DashboardPage() {
       (data.role === "student" ? "/onboarding/profile" : "/onboarding/faculty-profile");
 
     return (
-      <section className="mx-auto max-w-xl">
+      <section className="dashboard-surface -mx-6 mx-auto max-w-xl px-6 pb-6">
         <Card>
           <CardHeader>
             <CardTitle className="text-2xl">Set up your profile to get started</CardTitle>
@@ -189,11 +190,24 @@ export default async function DashboardPage() {
   }
 
   if (data.mode === "student") {
+    const degreeLabel = data.student.summary.degreeType ?? "Degree";
+    const departmentLabel = data.student.summary.department ?? "Department";
+
     return (
-      <section className="space-y-6">
-        <header className="space-y-2">
-          <p className="text-sm font-medium uppercase tracking-[0.14em] text-muted-foreground">Dashboard</p>
-          <h1 className="text-3xl font-semibold tracking-tight">Welcome back, {data.displayName}</h1>
+      <section className="dashboard-surface -mx-6 space-y-6 px-6 pb-6">
+        <header className="-mx-6 rounded-b-2xl bg-[linear-gradient(135deg,var(--color-primary)_0%,oklch(from_var(--color-primary)_calc(l_-_0.08)_c_h)_100%)] px-8 py-6">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="space-y-1">
+              <h1 className="font-[var(--font-display)] text-2xl font-normal text-white">Student Dashboard</h1>
+              <p className="text-[0.875rem] text-white/80">
+                {data.displayName} · {degreeLabel} · {departmentLabel}
+              </p>
+            </div>
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/80 px-3 py-1 text-xs font-semibold text-white">
+              <GraduationCap className="h-3.5 w-3.5" />
+              Student
+            </span>
+          </div>
         </header>
 
         <ProfileCompletenessCard
@@ -202,12 +216,13 @@ export default async function DashboardPage() {
           setupPath="/onboarding/profile"
           editPath="/profile/edit"
           editLabel="Edit Profile"
+          progressClassName="bg-primary"
         />
 
         <Card>
           <CardHeader className="flex flex-row items-end justify-between gap-3">
             <div className="space-y-1">
-              <CardTitle className="text-xl">Labs matching your interests</CardTitle>
+              <CardTitle>Labs matching your interests</CardTitle>
               <p className="text-sm text-muted-foreground">Recommended labs based on your current interest profile.</p>
             </div>
             <Link href="/discover" className="text-sm font-medium text-primary underline-offset-4 hover:underline">
@@ -256,7 +271,7 @@ export default async function DashboardPage() {
               data.student.sentSignals.map((signal) => (
                 <div
                   key={signal.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/90 p-3"
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border/90 bg-[var(--color-surface)] p-3"
                 >
                   <div className="space-y-1">
                     <p className="font-medium">{signal.labName}</p>
@@ -281,7 +296,7 @@ export default async function DashboardPage() {
   }
 
   return (
-    <section className="space-y-6">
+    <section className="dashboard-surface -mx-6 space-y-6 px-6 pb-6">
       <header className="space-y-2">
         <p className="text-sm font-medium uppercase tracking-[0.14em] text-muted-foreground">Dashboard</p>
         <h1 className="text-3xl font-semibold tracking-tight">Welcome back, {data.displayName}</h1>

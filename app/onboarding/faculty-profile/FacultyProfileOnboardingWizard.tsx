@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Check, Loader2 } from "lucide-react";
 import { ResearchInterestSelector } from "@/app/onboarding/shared/ResearchInterestSelector";
 import { SkillSelector, type SkillProficiency } from "@/app/onboarding/shared/SkillSelector";
 import { Badge } from "@/components/ui/badge";
@@ -97,6 +98,7 @@ export function FacultyProfileOnboardingWizard() {
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
+  const [showSubmitSuccess, setShowSubmitSuccess] = useState(false);
 
   useEffect(() => {
     void (async () => {
@@ -467,10 +469,15 @@ export function FacultyProfileOnboardingWizard() {
     }
 
     setIsSubmitting(true);
+    setShowSubmitSuccess(false);
     setGlobalError(null);
 
     try {
       await trpcClient.profile.createFacultyProfile.mutate(parsed.data);
+      setShowSubmitSuccess(true);
+      await new Promise((resolve) => {
+        window.setTimeout(resolve, 350);
+      });
       router.push("/dashboard");
       router.refresh();
     } catch (error) {
@@ -568,7 +575,7 @@ export function FacultyProfileOnboardingWizard() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-5">
+    <div className="faculty-focus mx-auto w-full max-w-4xl space-y-5">
       <Card>
         <CardHeader className="space-y-4">
           <div className="space-y-2">
@@ -908,8 +915,20 @@ export function FacultyProfileOnboardingWizard() {
           {currentStep < 5 ? (
             <Button type="button" onClick={goNext}>Next</Button>
           ) : (
-            <Button type="button" onClick={submitProfile} disabled={isSubmitting}>
-              {isSubmitting ? "Saving profile..." : "Submit profile"}
+            <Button type="button" variant="faculty" onClick={submitProfile} disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving profile...
+                </>
+              ) : showSubmitSuccess ? (
+                <>
+                  <Check className="mr-2 h-4 w-4" />
+                  Submitted
+                </>
+              ) : (
+                "Submit profile"
+              )}
             </Button>
           )}
         </CardFooter>

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Inter, Instrument_Serif } from "next/font/google";
+import { Geist, Instrument_Serif } from "next/font/google";
 import { cookies } from "next/headers";
 import { Footer } from "@/components/shared/layout/Footer";
 import { Navbar } from "@/components/shared/layout/Navbar";
@@ -7,14 +7,16 @@ import { Providers } from "@/components/shared/providers";
 import { createClient } from "@/lib/supabase/server";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-inter",
+const geist = Geist({
+  variable: "--font-geist",
+  weight: ["300", "400", "500", "600", "700"],
   subsets: ["latin"],
 });
 
 const instrumentSerif = Instrument_Serif({
   variable: "--font-instrument-serif",
   weight: "400",
+  style: ["normal", "italic"],
   subsets: ["latin"],
 });
 
@@ -120,7 +122,7 @@ export default async function RootLayout({
 
   return (
     <html lang="en" data-theme={theme}>
-      <body className={`${inter.variable} ${instrumentSerif.variable}`}>
+      <body className={`${geist.variable} ${instrumentSerif.variable}`}>
         <Providers>
           <div className="flex min-h-screen flex-col bg-background text-foreground">
             <Navbar

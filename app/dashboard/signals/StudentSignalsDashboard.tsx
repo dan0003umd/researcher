@@ -33,12 +33,11 @@ const statusLabelMap: Record<SignalStatus, string> = {
 };
 
 const statusStyleMap: Record<SignalStatus, string> = {
-  pending:
-    "border-slate-300 bg-slate-100 text-slate-800 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-200",
+  pending: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200",
   reviewed:
-    "border-primary/40 bg-primary/10 text-primary dark:border-primary/40 dark:bg-primary/20 dark:text-primary-foreground",
+    "border-teal-200 bg-teal-50 text-teal-700 dark:border-teal-700 dark:bg-teal-900/30 dark:text-teal-200",
   archived:
-    "border-neutral-300 bg-neutral-100 text-neutral-700 dark:border-neutral-700 dark:bg-neutral-900/40 dark:text-neutral-300",
+    "border-gray-200 bg-gray-50 text-gray-500 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-300",
 };
 
 function formatSignalDate(value: string) {
@@ -86,12 +85,12 @@ export function StudentSignalsDashboard({ signals }: StudentSignalsDashboardProp
   };
 
   return (
-    <section className="space-y-6">
+    <section className="dashboard-surface -mx-6 space-y-6 px-6 pb-6">
       <header className="space-y-2">
         <Link href="/dashboard" className="text-sm text-primary underline-offset-4 hover:underline">
           {"\u2190"} Dashboard
         </Link>
-        <h1 className="text-3xl font-semibold tracking-tight">My Interest Signals</h1>
+        <h1>My Interest Signals</h1>
         <p className="text-sm text-muted-foreground">Track the status of labs you&apos;ve reached out to.</p>
         <p className="text-sm text-muted-foreground">
           {signals.length} signals sent · {reviewedCount} reviewed · {pendingCount} pending

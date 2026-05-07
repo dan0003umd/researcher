@@ -757,6 +757,10 @@ export const dashboardRouter = createTRPCRouter({
         ...base,
         mode: "student" as const,
         student: {
+          summary: {
+            degreeType: completeness.student.profile.degree_type,
+            department: completeness.student.profile.department,
+          },
           matchedLabs,
           sentSignals,
         },

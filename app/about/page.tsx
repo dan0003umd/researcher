@@ -15,7 +15,7 @@ export const metadata: Metadata = buildMetadata({
 export default function AboutPage() {
   return (
     <div className="space-y-16 pb-10 sm:space-y-20">
-      <section className="space-y-6 pt-6 sm:pt-10">
+      <section className="marketing-headings space-y-6 pt-6 sm:pt-10">
         <h1 className="max-w-4xl text-4xl leading-tight tracking-tight sm:text-5xl">
           Connecting Students with Research Opportunities
         </h1>
@@ -33,7 +33,7 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-border/90 bg-card/70 p-6 sm:p-8">
+      <section className="marketing-headings rounded-2xl border border-border/90 bg-card/70 p-6 sm:p-8">
         <h2 className="text-3xl tracking-tight">How It Works</h2>
         <div className="mt-6 grid gap-6 md:grid-cols-2">
           <Card className="border-border/80 bg-background/80">
@@ -66,7 +66,7 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section className="space-y-6">
+      <section className="marketing-headings space-y-6">
         <h2 className="text-3xl tracking-tight">Built for the UMD Research Community</h2>
         <div className="grid gap-4 md:grid-cols-3">
           <Card className="border-border/90 bg-card/70">
@@ -98,7 +98,7 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-border/90 bg-card/70 p-6 sm:p-8">
+      <section className="marketing-headings rounded-2xl border border-border/90 bg-card/70 p-6 sm:p-8">
         <div className="space-y-4">
           <h2 className="text-3xl tracking-tight">Supporting UMD Research Organizations</h2>
           <p className="max-w-3xl text-sm leading-7 text-muted-foreground">
@@ -117,7 +117,7 @@ export default function AboutPage() {
         </div>
       </section>
 
-      <section className="rounded-2xl border border-border/90 bg-card/80 px-6 py-10 text-center sm:px-10">
+      <section className="marketing-headings rounded-2xl border border-border/90 bg-card/80 px-6 py-10 text-center sm:px-10">
         <div className="mx-auto max-w-2xl space-y-3">
           <h2 className="text-3xl tracking-tight sm:text-4xl">Ready to get started?</h2>
           <p className="text-sm text-muted-foreground">Join the UMD research community today.</p>

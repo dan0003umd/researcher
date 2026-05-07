@@ -1,5 +1,6 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { FlaskConical } from "lucide-react";
 import { FacultyDashboardClient } from "@/app/dashboard/faculty/FacultyDashboardClient";
 import { createClient } from "@/lib/supabase/server";
 import { appRouter } from "@/server/routers";
@@ -66,13 +67,20 @@ export default async function FacultyDashboardPage() {
   const initialSignals = await caller.faculty.getMyInterestSignals();
 
   return (
-    <section className="space-y-6">
-      <header className="space-y-2">
-        <p className="text-sm font-medium uppercase tracking-[0.14em] text-muted-foreground">Faculty Dashboard</p>
-        <h1 className="text-3xl font-semibold tracking-tight">Student Interest and Discovery</h1>
-        <p className="text-sm text-muted-foreground">
-          Review incoming signals and browse verified student profiles.
-        </p>
+    <section className="dashboard-surface -mx-6 space-y-6 px-6 pb-6">
+      <header className="-mx-6 rounded-b-2xl bg-[linear-gradient(135deg,#1e3a5f_0%,#2d5282_100%)] px-8 py-6">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="space-y-1">
+            <h1 className="font-[var(--font-display)] text-2xl font-normal text-white">Lab Dashboard</h1>
+            <p className="text-[0.875rem] text-white/80">
+              {labSummary.labName ?? "Research Lab"} · {labSummary.department ?? "Department"}
+            </p>
+          </div>
+          <span className="inline-flex items-center gap-2 rounded-full border border-white/80 px-3 py-1 text-xs font-semibold text-white">
+            <FlaskConical className="h-3.5 w-3.5" />
+            Faculty
+          </span>
+        </div>
       </header>
 
       <FacultyDashboardClient

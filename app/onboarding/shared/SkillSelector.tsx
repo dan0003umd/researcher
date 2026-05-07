@@ -80,9 +80,9 @@ const proficiencyLabelMap: Record<SkillProficiency, string> = {
 };
 
 const proficiencyClassMap: Record<SkillProficiency, string> = {
-  beginner: "bg-muted text-muted-foreground border-border",
-  intermediate: "bg-blue-100 text-blue-800 border-blue-200",
-  advanced: "bg-primary text-primary-foreground border-primary",
+  beginner: "border-gray-300 bg-gray-100 text-gray-600",
+  intermediate: "border-blue-200 bg-blue-100 text-blue-700",
+  advanced: "border-[oklch(from_var(--color-primary)_l_c_h_/_0.24)] bg-[oklch(from_var(--color-primary)_l_c_h_/_0.14)] text-primary",
 };
 
 export function SkillSelector({
@@ -258,7 +258,7 @@ export function SkillSelector({
           return (
             <div
               key={skill}
-              className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-background px-3 py-1 text-xs text-foreground"
+              className="inline-flex items-center gap-1 rounded-full border border-border bg-[var(--color-surface-offset)] px-2.5 py-1 text-[0.75rem] text-foreground"
             >
               <span>{skill}</span>
               <button

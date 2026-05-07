@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Check, Loader2 } from "lucide-react";
 import { z } from "zod";
 import { ResearchInterestSelector } from "@/app/onboarding/shared/ResearchInterestSelector";
 import { SkillSelector, type SkillProficiency } from "@/app/onboarding/shared/SkillSelector";
@@ -238,6 +239,7 @@ export function StudentProfileEditForm({
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [showSavedIndicator, setShowSavedIndicator] = useState(false);
 
   const allInterests = useMemo(() => interestGroups.flatMap((group) => group.interests), [interestGroups]);
   const allSkills = useMemo(() => skillGroups.flatMap((group) => group.skills), [skillGroups]);
@@ -476,11 +478,14 @@ export function StudentProfileEditForm({
     }
 
     setIsSaving(true);
+    setShowSavedIndicator(false);
 
     try {
       await trpcClient.profile.updateStudentProfile.mutate(parsed.data);
       setShowSuccessToast(true);
       window.setTimeout(() => setShowSuccessToast(false), 2500);
+      setShowSavedIndicator(true);
+      window.setTimeout(() => setShowSavedIndicator(false), 1500);
       router.refresh();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not update your profile.";
@@ -884,14 +889,38 @@ export function StudentProfileEditForm({
 
       <div className="hidden justify-end md:flex">
         <Button type="button" onClick={handleSave} disabled={isSaving}>
-          {isSaving ? "Saving..." : "Save"}
+          {isSaving ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Saving...
+            </>
+          ) : showSavedIndicator ? (
+            <>
+              <Check className="mr-2 h-4 w-4" />
+              Saved
+            </>
+          ) : (
+            "Save"
+          )}
         </Button>
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border/80 bg-background/95 p-4 shadow-[0_-8px_20px_rgba(0,0,0,0.08)] backdrop-blur md:hidden">
         <div className="mx-auto w-full max-w-4xl">
           <Button type="button" onClick={handleSave} disabled={isSaving} className="w-full">
-            {isSaving ? "Saving..." : "Save"}
+            {isSaving ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : showSavedIndicator ? (
+              <>
+                <Check className="mr-2 h-4 w-4" />
+                Saved
+              </>
+            ) : (
+              "Save"
+            )}
           </Button>
         </div>
       </div>

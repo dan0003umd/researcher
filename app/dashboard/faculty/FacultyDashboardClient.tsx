@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -61,11 +61,11 @@ const statusLabelMap: Record<SignalStatus, string> = {
 };
 
 const statusStyleMap: Record<SignalStatus, string> = {
-  pending: "border-amber-300 bg-amber-100 text-amber-900 dark:border-amber-700 dark:bg-amber-900/40 dark:text-amber-200",
+  pending: "border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200",
   reviewed:
-    "border-sky-300 bg-sky-100 text-sky-900 dark:border-sky-700 dark:bg-sky-900/40 dark:text-sky-200",
+    "border-indigo-200 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-200",
   archived:
-    "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300",
+    "border-gray-200 bg-gray-50 text-gray-500 dark:border-gray-700 dark:bg-gray-900/30 dark:text-gray-300",
 };
 
 function formatDate(value: string | null) {
@@ -162,7 +162,13 @@ function QuickActionsSection({
               {currentlyRecruiting ? "Actively Recruiting" : "Not Recruiting"}
             </span>
           </p>
-          <Button type="button" onClick={() => void onToggleRecruiting()} disabled={isToggling} className="w-full">
+          <Button
+            type="button"
+            variant="faculty"
+            onClick={() => void onToggleRecruiting()}
+            disabled={isToggling}
+            className="w-full"
+          >
             {isToggling
               ? "Updating..."
               : currentlyRecruiting
@@ -226,6 +232,9 @@ export function FacultyDashboardClient({
   const [isTogglingRecruiting, setIsTogglingRecruiting] = useState(false);
   const [isSavingMessage, setIsSavingMessage] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
+  const [exitingSignalIds, setExitingSignalIds] = useState<string[]>([]);
+  const [animatedStats, setAnimatedStats] = useState({ total: 0, pending: 0, reviewed: 0, archived: 0 });
+  const hasAnimatedStats = useRef(false);
 
   const signalStats = useMemo(() => {
     const pending = signals.filter((signal) => signal.status === "pending").length;
@@ -246,14 +255,56 @@ export function FacultyDashboardClient({
     return signals.filter((signal) => signal.status === activeTab);
   }, [activeTab, signals]);
 
+  useEffect(() => {
+    if (hasAnimatedStats.current) {
+      setAnimatedStats(signalStats);
+      return;
+    }
+
+    const startedAt = performance.now();
+    const duration = 600;
+    let frameId = 0;
+
+    const tick = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / duration);
+
+      setAnimatedStats({
+        total: Math.round(signalStats.total * progress),
+        pending: Math.round(signalStats.pending * progress),
+        reviewed: Math.round(signalStats.reviewed * progress),
+        archived: Math.round(signalStats.archived * progress),
+      });
+
+      if (progress < 1) {
+        frameId = window.requestAnimationFrame(tick);
+      } else {
+        hasAnimatedStats.current = true;
+      }
+    };
+
+    frameId = window.requestAnimationFrame(tick);
+
+    return () => window.cancelAnimationFrame(frameId);
+  }, [signalStats]);
+
   const setSignalStatus = async (signalId: string, status: "reviewed" | "archived") => {
     setUpdateError(null);
     setUpdatingSignalId(signalId);
 
     const previousSignal = signals.find((signal) => signal.id === signalId);
     const wasPending = previousSignal?.status === "pending";
+    const shouldAnimateExit = wasPending && status === "reviewed";
 
     try {
+      if (shouldAnimateExit) {
+        setExitingSignalIds((previous) =>
+          previous.includes(signalId) ? previous : [...previous, signalId],
+        );
+        await new Promise((resolve) => {
+          window.setTimeout(resolve, 200);
+        });
+      }
+
       const updatedSignal = await trpcClient.faculty.updateSignalStatus.mutate({
         signalId,
         status,
@@ -278,6 +329,7 @@ export function FacultyDashboardClient({
       const message = error instanceof Error ? error.message : "Could not update signal status.";
       setUpdateError(message);
     } finally {
+      setExitingSignalIds((previous) => previous.filter((id) => id !== signalId));
       setUpdatingSignalId(null);
     }
   };
@@ -320,31 +372,32 @@ export function FacultyDashboardClient({
               <p className="text-sm text-muted-foreground">{labSummary.department || "Department not listed"}</p>
             </div>
             <Badge
-              className={
+              className={cn(
+                "transition-colors duration-200",
                 currentlyRecruiting
-                  ? "border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200"
-                  : "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300"
-              }
+                  ? "border-[#2d5282]/30 bg-[#2d5282]/12 text-[#1e3a5f] dark:border-[#2d5282]/70 dark:bg-[#2d5282]/25 dark:text-blue-100"
+                  : "border-slate-300 bg-slate-100 text-slate-700 dark:border-slate-700 dark:bg-slate-900/40 dark:text-slate-300",
+              )}
             >
               {currentlyRecruiting ? "Actively Recruiting" : "Not Recruiting"}
             </Badge>
           </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="rounded-md border border-border/80 bg-card/70 p-3">
+            <div className="rounded-md border border-border/80 border-t-[3px] border-t-[#2d5282] bg-card/70 p-3">
               <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Total Signals</p>
-              <p className="mt-1 text-2xl font-semibold">{signalStats.total}</p>
+              <p className="mt-1 text-2xl font-semibold">{animatedStats.total}</p>
             </div>
-            <div className="rounded-md border border-border/80 bg-card/70 p-3">
+            <div className="rounded-md border border-border/80 border-t-[3px] border-t-[#2d5282] bg-card/70 p-3">
               <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Pending Review</p>
-              <p className="mt-1 text-2xl font-semibold">{signalStats.pending}</p>
+              <p className="mt-1 text-2xl font-semibold">{animatedStats.pending}</p>
             </div>
-            <div className="rounded-md border border-border/80 bg-card/70 p-3">
+            <div className="rounded-md border border-border/80 border-t-[3px] border-t-[#2d5282] bg-card/70 p-3">
               <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Reviewed</p>
-              <p className="mt-1 text-2xl font-semibold">{signalStats.reviewed}</p>
+              <p className="mt-1 text-2xl font-semibold">{animatedStats.reviewed}</p>
             </div>
-            <div className="rounded-md border border-border/80 bg-card/70 p-3">
+            <div className="rounded-md border border-border/80 border-t-[3px] border-t-[#2d5282] bg-card/70 p-3">
               <p className="text-xs uppercase tracking-[0.08em] text-muted-foreground">Archived</p>
-              <p className="mt-1 text-2xl font-semibold">{signalStats.archived}</p>
+              <p className="mt-1 text-2xl font-semibold">{animatedStats.archived}</p>
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -370,7 +423,7 @@ export function FacultyDashboardClient({
               <Button
                 key={tab}
                 type="button"
-                variant={activeTab === tab ? "default" : "outline"}
+                variant={activeTab === tab ? "faculty" : "outline"}
                 className="shrink-0 rounded-full"
                 onClick={() => setActiveTab(tab)}
               >
@@ -387,7 +440,13 @@ export function FacultyDashboardClient({
             </Card>
           ) : (
             filteredSignals.map((signal) => (
-              <Card key={signal.id}>
+              <Card
+                key={signal.id}
+                className={cn(
+                  "transition-all duration-200 ease-out",
+                  exitingSignalIds.includes(signal.id) ? "translate-x-2 opacity-0" : "translate-x-0 opacity-100",
+                )}
+              >
                 <CardHeader className="space-y-3">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="flex items-start gap-3">
@@ -463,7 +522,7 @@ export function FacultyDashboardClient({
                     </Link>
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="faculty"
                       className="w-full sm:w-auto"
                       onClick={() => void setSignalStatus(signal.id, "reviewed")}
                       disabled={updatingSignalId === signal.id || signal.status === "reviewed"}

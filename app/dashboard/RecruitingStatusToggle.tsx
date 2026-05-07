@@ -41,14 +41,22 @@ export function RecruitingStatusToggle({
       <p className="text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Recruiting Status</p>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <p className="text-xl font-semibold">{isRecruiting ? "Open to students" : "Not open right now"}</p>
+          <p
+            className={
+              isRecruiting
+                ? "text-xl font-semibold text-[#1e3a5f] transition-colors duration-200 dark:text-blue-100"
+                : "text-xl font-semibold transition-colors duration-200"
+            }
+          >
+            {isRecruiting ? "Open to students" : "Not open right now"}
+          </p>
           <p className="text-sm text-muted-foreground">
             {isRecruiting
               ? "Students can discover your lab as actively recruiting."
               : "Students can still view your profile, but you appear as not recruiting."}
           </p>
         </div>
-        <Button type="button" onClick={toggleRecruiting} disabled={isSaving}>
+        <Button type="button" variant="faculty" onClick={toggleRecruiting} disabled={isSaving}>
           {isSaving ? "Updating..." : isRecruiting ? "Turn Off" : "Turn On"}
         </Button>
       </div>
