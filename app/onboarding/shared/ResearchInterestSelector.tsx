@@ -1,276 +1,271 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Star, X } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 
-export type InterestItem = {
-  id: number;
-  name: string;
-  category: string;
-  parent_id: number | null;
-};
-
-export type InterestGroup = {
-  category: string;
-  interests: InterestItem[];
-};
-
-export type InterestSelection = {
-  interestId: number;
-  isPrimary: boolean;
-};
+export const RESEARCH_INTERESTS = [
+  "Machine Learning",
+  "Deep Learning",
+  "Natural Language Processing",
+  "Computer Vision",
+  "Robotics",
+  "Human-Computer Interaction",
+  "Cybersecurity",
+  "Distributed Systems",
+  "Database Systems",
+  "Algorithms & Theory",
+  "Bioinformatics",
+  "Computational Biology",
+  "Neuroscience",
+  "Cognitive Science",
+  "Data Science",
+  "Reinforcement Learning",
+  "Generative AI",
+  "AI Ethics & Fairness",
+  "Software Engineering",
+  "Programming Languages",
+  "Operating Systems",
+  "Computer Networks",
+  "Cloud Computing",
+  "Edge Computing",
+  "Quantum Computing",
+  "High Performance Computing",
+  "Computer Graphics",
+  "Virtual Reality",
+  "Augmented Reality",
+  "Social Computing",
+  "Information Retrieval",
+  "Knowledge Graphs",
+  "Multi-Agent Systems",
+  "Formal Verification",
+  "Compilers",
+  "Embedded Systems",
+  "Signal Processing",
+  "Medical Imaging",
+  "Climate Informatics",
+  "Economics & Computation",
+];
 
 type ResearchInterestSelectorProps = {
-  groups: InterestGroup[];
-  selected: InterestSelection[];
-  query: string;
-  onQueryChange: (value: string) => void;
-  onToggleInterest: (interestId: number) => void;
-  onTogglePrimary: (interestId: number) => void;
-  onCreateCustomInterest?: (name: string) => Promise<InterestItem>;
-  maxSelectable?: number;
+  value: string[];
+  onChange: (value: string[]) => void;
+  primaryInterests: string[];
+  onPrimaryChange: (value: string[]) => void;
+  maxSelections?: number;
   maxPrimary?: number;
   errorMessage?: string;
 };
 
+const normalize = (value: string) => value.trim().toLowerCase();
+
 export function ResearchInterestSelector({
-  groups,
-  selected,
-  query,
-  onQueryChange,
-  onToggleInterest,
-  onTogglePrimary,
-  onCreateCustomInterest,
-  maxSelectable = 8,
+  value,
+  onChange,
+  primaryInterests,
+  onPrimaryChange,
+  maxSelections = 8,
   maxPrimary = 3,
   errorMessage,
 }: ResearchInterestSelectorProps) {
-  const [isCreating, setIsCreating] = useState(false);
-  const selectedIds = useMemo(() => new Set(selected.map((item) => item.interestId)), [selected]);
-  const selectedPrimaryCount = selected.filter((item) => item.isPrimary).length;
-  const allInterests = useMemo(() => groups.flatMap((group) => group.interests), [groups]);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const [query, setQuery] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
 
-  const interestById = useMemo(() => {
-    const map = new Map<number, InterestItem>();
-    allInterests.forEach((interest) => {
-      map.set(interest.id, interest);
-    });
-    return map;
-  }, [allInterests]);
+  const normalizedSelected = useMemo(() => new Set(value.map(normalize)), [value]);
+  const canAddMore = value.length < maxSelections;
 
-  const normalizedQuery = query.trim().toLowerCase();
+  const filteredOptions = useMemo(() => {
+    const normalizedQuery = normalize(query);
 
-  const matchingInterests = useMemo(() => {
     if (!normalizedQuery) {
       return [];
     }
 
-    return allInterests
-      .filter((interest) => !selectedIds.has(interest.id))
-      .filter((interest) => interest.name.toLowerCase().includes(normalizedQuery))
+    return RESEARCH_INTERESTS.filter((item) => !normalizedSelected.has(normalize(item)))
+      .filter((item) => normalize(item).includes(normalizedQuery))
       .slice(0, 8);
-  }, [allInterests, normalizedQuery, selectedIds]);
+  }, [query, normalizedSelected]);
 
-  const canAddMore = selected.length < maxSelectable;
-  const visibleErrorMessage = selected.length > 0 ? null : errorMessage;
+  const hasExactMatch = useMemo(() => {
+    const normalizedQuery = normalize(query);
+    if (!normalizedQuery) {
+      return false;
+    }
 
-  const addInterestFromInput = async () => {
-    const rawValue = query.replace(/,+$/, "").trim();
+    return RESEARCH_INTERESTS.some((item) => normalize(item) === normalizedQuery);
+  }, [query]);
 
-    if (!rawValue || !canAddMore) {
+  const addInterest = (raw: string) => {
+    const nextValue = raw.trim();
+    if (!nextValue || !canAddMore) {
       return;
     }
 
-    const existing = allInterests.find((interest) => interest.name.toLowerCase() === rawValue.toLowerCase());
-
-    if (existing) {
-      if (!selectedIds.has(existing.id)) {
-        onToggleInterest(existing.id);
-      }
-      onQueryChange("");
+    if (normalizedSelected.has(normalize(nextValue))) {
+      setQuery("");
+      setIsOpen(false);
       return;
     }
 
-    if (!onCreateCustomInterest) {
-      return;
+    const nextSelected = [...value, nextValue];
+    onChange(nextSelected);
+
+    const nextPrimary = primaryInterests.filter((item) =>
+      nextSelected.some((selected) => normalize(selected) === normalize(item)),
+    );
+
+    if (
+      nextPrimary.length < maxPrimary &&
+      !nextPrimary.some((item) => normalize(item) === normalize(nextValue))
+    ) {
+      nextPrimary.push(nextValue);
+      onPrimaryChange(nextPrimary);
+    } else {
+      onPrimaryChange(nextPrimary);
     }
 
-    setIsCreating(true);
-    try {
-      const customInterest = await onCreateCustomInterest(rawValue);
-      if (!selectedIds.has(customInterest.id)) {
-        onToggleInterest(customInterest.id);
-      }
-      onQueryChange("");
-    } finally {
-      setIsCreating(false);
-    }
+    setQuery("");
+    setIsOpen(false);
   };
 
-  const handleQueryKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (event) => {
-    if (event.key === "Enter" || event.key === ",") {
-      event.preventDefault();
-      void addInterestFromInput();
-    }
+  const removeInterest = (interest: string) => {
+    const nextSelected = value.filter((item) => normalize(item) !== normalize(interest));
+    const nextPrimary = primaryInterests.filter((item) => normalize(item) !== normalize(interest));
+    onChange(nextSelected);
+    onPrimaryChange(nextPrimary);
   };
 
-  const hasDropdown = normalizedQuery.length > 0;
+  const togglePrimary = (interest: string) => {
+    const exists = primaryInterests.some((item) => normalize(item) === normalize(interest));
+
+    if (exists) {
+      onPrimaryChange(primaryInterests.filter((item) => normalize(item) !== normalize(interest)));
+      return;
+    }
+
+    const cleaned = primaryInterests.filter((item) =>
+      value.some((selected) => normalize(selected) === normalize(item)),
+    );
+
+    if (cleaned.length < maxPrimary) {
+      onPrimaryChange([...cleaned, interest]);
+      return;
+    }
+
+    onPrimaryChange([...cleaned.slice(1), interest]);
+  };
+
+  useEffect(() => {
+    const onDocumentClick = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (wrapperRef.current && !wrapperRef.current.contains(target)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", onDocumentClick);
+    return () => document.removeEventListener("mousedown", onDocumentClick);
+  }, []);
+
+  const showDropdown = isOpen && query.trim().length > 0 && canAddMore;
+  const normalizedQuery = normalize(query);
+  const showCustomAdd =
+    normalizedQuery.length > 0 &&
+    !hasExactMatch &&
+    !value.some((item) => normalize(item) === normalizedQuery);
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="w-full space-y-2 sm:max-w-sm">
-          <Input
-            value={query}
-            onChange={(event) => onQueryChange(event.target.value)}
-            onKeyDown={handleQueryKeyDown}
-            placeholder="Search interests"
-            aria-label="Search and add research interests"
-            disabled={isCreating}
-          />
-          {hasDropdown ? (
-            <div className="rounded-md border border-border/90 bg-card shadow-sm">
-              {matchingInterests.length > 0 ? (
-                <ul className="max-h-56 overflow-y-auto p-1">
-                  {matchingInterests.map((interest) => (
-                    <li key={interest.id}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!canAddMore) {
-                            return;
-                          }
-                          onToggleInterest(interest.id);
-                          onQueryChange("");
-                        }}
-                        className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
-                        disabled={!canAddMore}
-                      >
-                        <span>{interest.name}</span>
-                        <span className="text-xs text-muted-foreground">{interest.category}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    void addInterestFromInput();
-                  }}
-                  className="w-full rounded-md px-2 py-2 text-left text-sm hover:bg-muted disabled:opacity-50"
-                  disabled={!canAddMore || !onCreateCustomInterest || isCreating}
-                >
-                  {isCreating ? "Adding..." : `Add "${query.trim()}" as a custom interest`}
-                </button>
-              )}
-            </div>
-          ) : null}
-        </div>
-        <Badge variant="secondary">
-          {selected.length}/{maxSelectable} selected · {selectedPrimaryCount}/{maxPrimary} primary
-        </Badge>
+    <div className="space-y-3" ref={wrapperRef}>
+      <div className="flex items-center justify-end">
+        <p className="text-xs text-muted-foreground">
+          {value.length}/{maxSelections} selected · {primaryInterests.length}/{maxPrimary} primary
+        </p>
       </div>
 
-      {selected.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
-          {selected.map((selection) => {
-            const interest = interestById.get(selection.interestId);
-            const interestName = interest?.name ?? `Interest #${selection.interestId}`;
+      <div className="relative">
+        <Input
+          value={query}
+          onFocus={() => setIsOpen(true)}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setIsOpen(true);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              setIsOpen(false);
+              return;
+            }
 
-            return (
-              <div
-                key={selection.interestId}
-                className="inline-flex items-center gap-1 rounded-full border border-border/80 bg-background px-2 py-1"
+            if (event.key === "Enter") {
+              event.preventDefault();
+              if (filteredOptions.length > 0) {
+                addInterest(filteredOptions[0]);
+              } else if (query.trim().length > 0) {
+                addInterest(query);
+              }
+            }
+          }}
+          placeholder="Search interests..."
+          disabled={!canAddMore}
+          title={!canAddMore ? `Maximum ${maxSelections} interests selected` : undefined}
+          className="w-full border-border/80 focus-visible:ring-primary"
+        />
+
+        {showDropdown ? (
+          <div className="absolute z-50 mt-2 max-h-60 w-full overflow-y-auto rounded-md border border-border bg-background shadow-md">
+            {filteredOptions.map((option) => (
+              <button
+                key={option}
+                type="button"
+                className="block w-full px-3 py-2 text-left text-sm hover:bg-primary/10"
+                onClick={() => addInterest(option)}
               >
-                <button
-                  type="button"
-                  onClick={() => onTogglePrimary(selection.interestId)}
-                  className="inline-flex items-center gap-1 rounded-full px-1 text-xs"
-                >
-                  <Star
-                    className={
-                      selection.isPrimary
-                        ? "h-3.5 w-3.5 fill-primary text-primary"
-                        : "h-3.5 w-3.5 text-muted-foreground"
-                    }
-                  />
-                  <span className={selection.isPrimary ? "text-primary" : "text-foreground"}>{interestName}</span>
-                </button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-xs"
-                  className="rounded-full"
-                  onClick={() => onToggleInterest(selection.interestId)}
-                  aria-label={`Remove ${interestName}`}
-                >
-                  <X className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            );
-          })}
-        </div>
-      ) : null}
-
-      {visibleErrorMessage ? <p className="text-sm text-destructive">{visibleErrorMessage}</p> : null}
-
-      <div className="space-y-5">
-        {groups.map((group) => (
-          <div key={group.category} className="space-y-2">
-            <h3 className="text-sm font-semibold text-muted-foreground">{group.category}</h3>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {group.interests.map((interest) => {
-                const selectedInterest = selected.find((item) => item.interestId === interest.id);
-                const isSelected = selectedIds.has(interest.id);
-
-                return (
-                  <div
-                    key={interest.id}
-                    className="flex items-center justify-between gap-2 rounded-md border px-3 py-2"
-                  >
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => onToggleInterest(interest.id)}
-                      className="h-auto flex-1 justify-start px-0"
-                    >
-                      <span className={isSelected ? "font-semibold text-foreground" : "text-muted-foreground"}>
-                        {interest.name}
-                      </span>
-                    </Button>
-                    <div className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        variant={isSelected ? "secondary" : "outline"}
-                        size="sm"
-                        onClick={() => onToggleInterest(interest.id)}
-                        disabled={!isSelected && !canAddMore}
-                      >
-                        {isSelected ? "Selected" : "Select"}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant={selectedInterest?.isPrimary ? "default" : "outline"}
-                        size="icon-sm"
-                        onClick={() => onTogglePrimary(interest.id)}
-                        disabled={!isSelected}
-                        aria-label={`Toggle ${interest.name} as primary`}
-                      >
-                        <Star className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                {option}
+              </button>
+            ))}
+            {showCustomAdd ? (
+              <button
+                type="button"
+                className="block w-full px-3 py-2 text-left text-sm text-primary hover:bg-primary/10"
+                onClick={() => addInterest(query)}
+              >
+                + Add &quot;{query.trim()}&quot;
+              </button>
+            ) : null}
           </div>
-        ))}
+        ) : null}
       </div>
+
+      <div className="flex flex-wrap gap-2">
+        {value.map((interest) => {
+          const isPrimary = primaryInterests.some((item) => normalize(item) === normalize(interest));
+          return (
+            <div
+              key={interest}
+              className={
+                isPrimary
+                  ? "inline-flex items-center gap-1 rounded-full border border-primary bg-primary px-3 py-1 text-xs font-medium text-primary-foreground"
+                  : "inline-flex items-center gap-1 rounded-full border border-primary bg-background px-3 py-1 text-xs font-medium text-primary"
+              }
+            >
+              <button type="button" onClick={() => togglePrimary(interest)} className="truncate">
+                {interest}
+              </button>
+              <button
+                type="button"
+                onClick={() => removeInterest(interest)}
+                aria-label={`Remove ${interest}`}
+                className="rounded-full p-0.5"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
     </div>
   );
 }

@@ -1,9 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ResearchInterestSelector, type InterestGroup } from "@/app/onboarding/shared/ResearchInterestSelector";
-import { SkillSelector, type SkillGroup } from "@/app/onboarding/shared/SkillSelector";
+import { ResearchInterestSelector } from "@/app/onboarding/shared/ResearchInterestSelector";
+import { SkillSelector, type SkillProficiency } from "@/app/onboarding/shared/SkillSelector";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,6 +32,28 @@ import {
 } from "@/lib/validators/profile";
 
 type StepNumber = 1 | 2 | 3 | 4 | 5 | 6;
+
+type InterestItem = {
+  id: number;
+  name: string;
+  category: string;
+};
+
+type InterestGroup = {
+  category: string;
+  interests: InterestItem[];
+};
+
+type SkillItem = {
+  id: number;
+  name: string;
+  category: string;
+};
+
+type SkillGroup = {
+  category: string;
+  skills: SkillItem[];
+};
 
 const stepLabels: Array<{ step: StepNumber; label: string }> = [
   { step: 1, label: "Basic Info" },
@@ -104,8 +126,6 @@ export function ProfileOnboardingWizard() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [interestGroups, setInterestGroups] = useState<InterestGroup[]>([]);
   const [skillGroups, setSkillGroups] = useState<SkillGroup[]>([]);
-  const [interestQuery, setInterestQuery] = useState("");
-  const [skillQuery, setSkillQuery] = useState("");
   const [isBootstrapping, setIsBootstrapping] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
@@ -158,6 +178,59 @@ export function ProfileOnboardingWizard() {
   }, []);
 
   const progressValue = (currentStep / 6) * 100;
+
+  const allInterests = useMemo(() => interestGroups.flatMap((group) => group.interests), [interestGroups]);
+  const allSkills = useMemo(() => skillGroups.flatMap((group) => group.skills), [skillGroups]);
+
+  const interestNameById = useMemo(() => {
+    const map = new Map<number, string>();
+    allInterests.forEach((interest) => map.set(interest.id, interest.name));
+    return map;
+  }, [allInterests]);
+
+  const skillNameById = useMemo(() => {
+    const map = new Map<number, string>();
+    allSkills.forEach((skill) => map.set(skill.id, skill.name));
+    return map;
+  }, [allSkills]);
+
+  const selectedInterestNames = useMemo(
+    () =>
+      formValues.interests
+        .map((item) => interestNameById.get(item.interestId))
+        .filter((item): item is string => Boolean(item)),
+    [formValues.interests, interestNameById],
+  );
+
+  const selectedPrimaryInterestNames = useMemo(
+    () =>
+      formValues.interests
+        .filter((item) => item.isPrimary)
+        .map((item) => interestNameById.get(item.interestId))
+        .filter((item): item is string => Boolean(item)),
+    [formValues.interests, interestNameById],
+  );
+
+  const skillNames = useMemo(
+    () =>
+      formValues.skills
+        .map((item) => skillNameById.get(item.skillId))
+        .filter((item): item is string => Boolean(item)),
+    [formValues.skills, skillNameById],
+  );
+
+  const skillProficiencyByName = useMemo(() => {
+    const map: Record<string, SkillProficiency> = {};
+    formValues.skills.forEach((skill) => {
+      const skillName = skillNameById.get(skill.skillId);
+      if (skillName) {
+        const normalized =
+          skill.proficiencyLevel === "expert" ? "advanced" : (skill.proficiencyLevel as SkillProficiency);
+        map[skillName] = normalized;
+      }
+    });
+    return map;
+  }, [formValues.skills, skillNameById]);
 
   const validateCurrentStep = () => {
     setGlobalError(null);
@@ -298,30 +371,6 @@ export function ProfileOnboardingWizard() {
     });
   };
 
-  const togglePrimaryInterest = (interestId: number) => {
-    setFormValues((previous) => {
-      const primaryCount = previous.interests.filter((interest) => interest.isPrimary).length;
-
-      return {
-        ...previous,
-        interests: previous.interests.map((interest) => {
-          if (interest.interestId !== interestId) {
-            return interest;
-          }
-
-          if (!interest.isPrimary && primaryCount >= 3) {
-            return interest;
-          }
-
-          return {
-            ...interest,
-            isPrimary: !interest.isPrimary,
-          };
-        }),
-      };
-    });
-  };
-
   const toggleSkill = (skillId: number) => {
     setFormValues((previous) => {
       const exists = previous.skills.some((skill) => skill.skillId === skillId);
@@ -356,6 +405,103 @@ export function ProfileOnboardingWizard() {
           : skill,
       ),
     }));
+  };
+
+  const normalizeToken = (value: string) => value.trim().toLowerCase();
+
+  const resolveInterestByName = (name: string) =>
+    allInterests.find((interest) => normalizeToken(interest.name) === normalizeToken(name));
+
+  const resolveSkillByName = (name: string) =>
+    allSkills.find((skill) => normalizeToken(skill.name) === normalizeToken(name));
+
+  const handleInterestNameChange = (nextNames: string[]) => {
+    const previousNames = new Set(selectedInterestNames.map(normalizeToken));
+    const nextNameSet = new Set(nextNames.map(normalizeToken));
+
+    selectedInterestNames
+      .filter((name) => !nextNameSet.has(normalizeToken(name)))
+      .forEach((name) => {
+        const match = resolveInterestByName(name);
+        if (match) {
+          toggleInterest(match.id);
+        }
+      });
+
+    nextNames
+      .filter((name) => !previousNames.has(normalizeToken(name)))
+      .forEach((name) => {
+        const existing = resolveInterestByName(name);
+        if (existing) {
+          toggleInterest(existing.id);
+          return;
+        }
+
+        void (async () => {
+          try {
+            const createdInterest = await createCustomInterest(name);
+            toggleInterest(createdInterest.id);
+          } catch {
+            setGlobalError("Could not create custom interest.");
+          }
+        })();
+      });
+  };
+
+  const handlePrimaryInterestChange = (nextPrimaryNames: string[]) => {
+    const normalizedPrimary = new Set(nextPrimaryNames.map(normalizeToken));
+    setFormValues((previous) => ({
+      ...previous,
+      interests: previous.interests.map((interest) => {
+        const interestName = interestNameById.get(interest.interestId);
+        return {
+          ...interest,
+          isPrimary: Boolean(interestName && normalizedPrimary.has(normalizeToken(interestName))),
+        };
+      }),
+    }));
+  };
+
+  const handleSkillNameChange = (nextSkills: string[]) => {
+    const previousNames = new Set(skillNames.map(normalizeToken));
+    const nextNameSet = new Set(nextSkills.map(normalizeToken));
+
+    skillNames
+      .filter((name) => !nextNameSet.has(normalizeToken(name)))
+      .forEach((name) => {
+        const match = resolveSkillByName(name);
+        if (match) {
+          toggleSkill(match.id);
+        }
+      });
+
+    nextSkills
+      .filter((name) => !previousNames.has(normalizeToken(name)))
+      .forEach((name) => {
+        const existing = resolveSkillByName(name);
+        if (existing) {
+          toggleSkill(existing.id);
+          return;
+        }
+
+        void (async () => {
+          try {
+            const createdSkill = await createCustomSkill(name);
+            toggleSkill(createdSkill.id);
+          } catch {
+            setGlobalError("Could not create custom skill.");
+          }
+        })();
+      });
+  };
+
+  const handleSkillProficiencyChange = (nextProficiencies: Record<string, SkillProficiency>) => {
+    Object.entries(nextProficiencies).forEach(([skillName, proficiency]) => {
+      const match = resolveSkillByName(skillName);
+      if (match) {
+        setSkillProficiency(match.id, proficiency);
+      }
+    });
   };
 
   const toggleCollaborationType = (value: CollaborationTypeValue) => {
@@ -586,26 +732,21 @@ export function ProfileOnboardingWizard() {
 
           {currentStep === 2 ? (
             <ResearchInterestSelector
-              groups={interestGroups}
-              selected={formValues.interests}
-              query={interestQuery}
-              onQueryChange={setInterestQuery}
-              onToggleInterest={toggleInterest}
-              onTogglePrimary={togglePrimaryInterest}
-              onCreateCustomInterest={createCustomInterest}
+              value={selectedInterestNames}
+              onChange={handleInterestNameChange}
+              primaryInterests={selectedPrimaryInterestNames}
+              onPrimaryChange={handlePrimaryInterestChange}
               errorMessage={errors.interests}
             />
           ) : null}
 
           {currentStep === 3 ? (
             <SkillSelector
-              groups={skillGroups}
-              selected={formValues.skills}
-              query={skillQuery}
-              onQueryChange={setSkillQuery}
-              onToggleSkill={toggleSkill}
-              onSetSkillProficiency={setSkillProficiency}
-              onCreateCustomSkill={createCustomSkill}
+              value={skillNames}
+              onChange={handleSkillNameChange}
+              proficiencyBySkill={skillProficiencyByName}
+              onProficiencyChange={handleSkillProficiencyChange}
+              maxSelections={10}
               errorMessage={errors.skills}
             />
           ) : null}

@@ -1,274 +1,287 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { X } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
-import { skillProficiencyOptions, type SkillProficiencyValue } from "@/lib/validators/profile";
 
-export type SkillItem = {
-  id: number;
-  name: string;
-  category: string;
-};
+export const SKILLS = [
+  "Python",
+  "JavaScript",
+  "TypeScript",
+  "R",
+  "MATLAB",
+  "Julia",
+  "C++",
+  "Java",
+  "Go",
+  "Rust",
+  "SQL",
+  "NoSQL",
+  "TensorFlow",
+  "PyTorch",
+  "Keras",
+  "scikit-learn",
+  "Hugging Face",
+  "React",
+  "Next.js",
+  "Node.js",
+  "FastAPI",
+  "Django",
+  "Flask",
+  "Docker",
+  "Kubernetes",
+  "AWS",
+  "Google Cloud",
+  "Azure",
+  "Git",
+  "Linux",
+  "Bash",
+  "LaTeX",
+  "CUDA",
+  "Data Analysis",
+  "Statistical Modeling",
+  "Data Visualization",
+  "Research Design",
+  "Scientific Writing",
+  "Literature Review",
+  "Wet Lab Techniques",
+  "PCR",
+  "Cell Culture",
+  "Microscopy",
+  "Survey Design",
+  "Qualitative Research",
+  "Ethnography",
+  "Signal Processing",
+  "Circuit Design",
+  "3D Modeling",
+  "Figma",
+  "UX Research",
+  "Prompt Engineering",
+];
 
-export type SkillGroup = {
-  category: string;
-  skills: SkillItem[];
-};
-
-export type SkillSelection = {
-  skillId: number;
-  proficiencyLevel: SkillProficiencyValue;
-};
+export type SkillProficiency = "beginner" | "intermediate" | "advanced";
 
 type SkillSelectorProps = {
-  groups: SkillGroup[];
-  selected: SkillSelection[];
-  query: string;
-  onQueryChange: (value: string) => void;
-  onToggleSkill: (skillId: number) => void;
-  onSetSkillProficiency: (skillId: number, proficiencyLevel: SkillProficiencyValue) => void;
-  onCreateCustomSkill?: (name: string) => Promise<SkillItem>;
-  maxSelectable?: number;
+  value: string[];
+  onChange: (value: string[]) => void;
+  proficiencyBySkill?: Record<string, SkillProficiency>;
+  onProficiencyChange?: (value: Record<string, SkillProficiency>) => void;
+  maxSelections?: number;
   errorMessage?: string;
 };
 
-const proficiencyLabelMap: Record<SkillProficiencyValue, string> = {
+const normalize = (value: string) => value.trim().toLowerCase();
+const proficiencyOrder: SkillProficiency[] = ["beginner", "intermediate", "advanced"];
+
+const proficiencyLabelMap: Record<SkillProficiency, string> = {
   beginner: "Beginner",
   intermediate: "Intermediate",
   advanced: "Advanced",
-  expert: "Expert",
+};
+
+const proficiencyClassMap: Record<SkillProficiency, string> = {
+  beginner: "bg-muted text-muted-foreground border-border",
+  intermediate: "bg-blue-100 text-blue-800 border-blue-200",
+  advanced: "bg-primary text-primary-foreground border-primary",
 };
 
 export function SkillSelector({
-  groups,
-  selected,
-  query,
-  onQueryChange,
-  onToggleSkill,
-  onSetSkillProficiency,
-  onCreateCustomSkill,
-  maxSelectable = 10,
+  value,
+  onChange,
+  proficiencyBySkill = {},
+  onProficiencyChange,
+  maxSelections = 15,
   errorMessage,
 }: SkillSelectorProps) {
-  const [isCreating, setIsCreating] = useState(false);
-  const selectedIds = useMemo(() => new Set(selected.map((item) => item.skillId)), [selected]);
-  const allSkills = useMemo(() => groups.flatMap((group) => group.skills), [groups]);
-  const skillById = useMemo(() => {
-    const map = new Map<number, SkillItem>();
-    allSkills.forEach((skill) => {
-      map.set(skill.id, skill);
-    });
-    return map;
-  }, [allSkills]);
+  const wrapperRef = useRef<HTMLDivElement | null>(null);
+  const [query, setQuery] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
 
-  const normalizedQuery = query.trim().toLowerCase();
-  const matchingSkills = useMemo(() => {
+  const normalizedSelected = useMemo(() => new Set(value.map(normalize)), [value]);
+  const canAddMore = value.length < maxSelections;
+
+  const filteredOptions = useMemo(() => {
+    const normalizedQuery = normalize(query);
+
     if (!normalizedQuery) {
       return [];
     }
 
-    return allSkills
-      .filter((skill) => !selectedIds.has(skill.id))
-      .filter((skill) => skill.name.toLowerCase().includes(normalizedQuery))
+    return SKILLS.filter((item) => !normalizedSelected.has(normalize(item)))
+      .filter((item) => normalize(item).includes(normalizedQuery))
       .slice(0, 8);
-  }, [allSkills, normalizedQuery, selectedIds]);
+  }, [query, normalizedSelected]);
 
-  const canAddMore = selected.length < maxSelectable;
-  const visibleErrorMessage = selected.length > 0 ? null : errorMessage;
+  const hasExactMatch = useMemo(() => {
+    const normalizedQuery = normalize(query);
+    if (!normalizedQuery) {
+      return false;
+    }
 
-  const addSkillFromInput = async () => {
-    const rawValue = query.replace(/,+$/, "").trim();
+    return SKILLS.some((item) => normalize(item) === normalizedQuery);
+  }, [query]);
 
-    if (!rawValue || !canAddMore) {
+  const addSkill = (raw: string) => {
+    const nextValue = raw.trim();
+    if (!nextValue || !canAddMore) {
       return;
     }
 
-    const existing = allSkills.find((skill) => skill.name.toLowerCase() === rawValue.toLowerCase());
-
-    if (existing) {
-      if (!selectedIds.has(existing.id)) {
-        onToggleSkill(existing.id);
-      }
-      onQueryChange("");
+    if (normalizedSelected.has(normalize(nextValue))) {
+      setQuery("");
+      setIsOpen(false);
       return;
     }
 
-    if (!onCreateCustomSkill) {
-      return;
+    const nextSkills = [...value, nextValue];
+    onChange(nextSkills);
+
+    if (onProficiencyChange) {
+      onProficiencyChange({
+        ...proficiencyBySkill,
+        [nextValue]: proficiencyBySkill[nextValue] ?? "beginner",
+      });
     }
 
-    setIsCreating(true);
-    try {
-      const customSkill = await onCreateCustomSkill(rawValue);
-      if (!selectedIds.has(customSkill.id)) {
-        onToggleSkill(customSkill.id);
-      }
-      onQueryChange("");
-    } finally {
-      setIsCreating(false);
+    setQuery("");
+    setIsOpen(false);
+  };
+
+  const removeSkill = (skill: string) => {
+    const nextSkills = value.filter((item) => normalize(item) !== normalize(skill));
+    onChange(nextSkills);
+
+    if (onProficiencyChange) {
+      const next = { ...proficiencyBySkill };
+      delete next[skill];
+      onProficiencyChange(next);
     }
   };
 
-  const handleQueryKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (event) => {
-    if (event.key === "Enter" || event.key === ",") {
-      event.preventDefault();
-      void addSkillFromInput();
+  const cycleProficiency = (skill: string) => {
+    if (!onProficiencyChange) {
+      return;
     }
+
+    const current = proficiencyBySkill[skill] ?? "beginner";
+    const currentIndex = proficiencyOrder.indexOf(current);
+    const next = proficiencyOrder[(currentIndex + 1) % proficiencyOrder.length];
+    onProficiencyChange({
+      ...proficiencyBySkill,
+      [skill]: next,
+    });
   };
 
-  const hasDropdown = normalizedQuery.length > 0;
+  useEffect(() => {
+    const onDocumentClick = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (wrapperRef.current && !wrapperRef.current.contains(target)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", onDocumentClick);
+    return () => document.removeEventListener("mousedown", onDocumentClick);
+  }, []);
+
+  const showDropdown = isOpen && query.trim().length > 0 && canAddMore;
+  const normalizedQuery = normalize(query);
+  const showCustomAdd =
+    normalizedQuery.length > 0 &&
+    !hasExactMatch &&
+    !value.some((item) => normalize(item) === normalizedQuery);
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div className="w-full space-y-2 sm:max-w-sm">
-          <Input
-            value={query}
-            onChange={(event) => onQueryChange(event.target.value)}
-            onKeyDown={handleQueryKeyDown}
-            placeholder="Search skills"
-            aria-label="Search and add skills"
-            disabled={isCreating}
-          />
-          {hasDropdown ? (
-            <div className="rounded-md border border-border/90 bg-card shadow-sm">
-              {matchingSkills.length > 0 ? (
-                <ul className="max-h-56 overflow-y-auto p-1">
-                  {matchingSkills.map((skill) => (
-                    <li key={skill.id}>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!canAddMore) {
-                            return;
-                          }
-                          onToggleSkill(skill.id);
-                          onQueryChange("");
-                        }}
-                        className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
-                        disabled={!canAddMore}
-                      >
-                        <span>{skill.name}</span>
-                        <span className="text-xs text-muted-foreground">{skill.category}</span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => {
-                    void addSkillFromInput();
-                  }}
-                  className="w-full rounded-md px-2 py-2 text-left text-sm hover:bg-muted disabled:opacity-50"
-                  disabled={!canAddMore || !onCreateCustomSkill || isCreating}
-                >
-                  {isCreating ? "Adding..." : `Add "${query.trim()}" as a custom skill`}
-                </button>
-              )}
-            </div>
-          ) : null}
-        </div>
-        <Badge variant="secondary">{selected.length}/{maxSelectable} selected</Badge>
+    <div className="space-y-3" ref={wrapperRef}>
+      <div className="flex items-center justify-end">
+        <p className="text-xs text-muted-foreground">{value.length} skills added</p>
       </div>
 
-      {selected.length > 0 ? (
-        <div className="flex flex-wrap gap-2">
-          {selected.map((selection) => {
-            const skill = skillById.get(selection.skillId);
-            const skillName = skill?.name ?? `Skill #${selection.skillId}`;
+      <div className="relative">
+        <Input
+          value={query}
+          onFocus={() => setIsOpen(true)}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setIsOpen(true);
+          }}
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              setIsOpen(false);
+              return;
+            }
 
-            return (
-              <div
-                key={selection.skillId}
-                className="inline-flex items-center gap-2 rounded-full border border-border/80 bg-background px-2 py-1"
+            if (event.key === "Enter" || event.key === ",") {
+              event.preventDefault();
+              if (filteredOptions.length > 0) {
+                addSkill(filteredOptions[0]);
+              } else if (query.trim().length > 0) {
+                addSkill(query);
+              }
+            }
+          }}
+          placeholder="Search skills..."
+          disabled={!canAddMore}
+          title={!canAddMore ? `Maximum ${maxSelections} skills selected` : undefined}
+          className="w-full border-border/80 focus-visible:ring-primary"
+        />
+
+        {showDropdown ? (
+          <div className="absolute z-50 mt-2 max-h-60 w-full overflow-y-auto rounded-md border border-border bg-background shadow-md">
+            {filteredOptions.map((option) => (
+              <button
+                key={option}
+                type="button"
+                className="block w-full px-3 py-2 text-left text-sm hover:bg-primary/10"
+                onClick={() => addSkill(option)}
               >
-                <span className="text-xs font-medium">{skillName}</span>
-                <Select
-                  value={selection.proficiencyLevel}
-                  onChange={(event) =>
-                    onSetSkillProficiency(selection.skillId, event.target.value as SkillProficiencyValue)
-                  }
-                  className="h-7 w-32 text-xs"
-                >
-                  {skillProficiencyOptions.map((value) => (
-                    <option key={value} value={value}>
-                      {proficiencyLabelMap[value]}
-                    </option>
-                  ))}
-                </Select>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-xs"
-                  className="rounded-full"
-                  onClick={() => onToggleSkill(selection.skillId)}
-                  aria-label={`Remove ${skillName}`}
-                >
-                  <X className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            );
-          })}
-        </div>
-      ) : null}
-
-      {visibleErrorMessage ? <p className="text-sm text-destructive">{visibleErrorMessage}</p> : null}
-
-      <div className="space-y-5">
-        {groups.map((group) => (
-          <div key={group.category} className="space-y-2">
-            <h3 className="text-sm font-semibold text-muted-foreground">{group.category}</h3>
-            <div className="grid gap-2">
-              {group.skills.map((skill) => {
-                const selectedSkill = selected.find((item) => item.skillId === skill.id);
-                const isSelected = selectedIds.has(skill.id);
-
-                return (
-                  <div
-                    key={skill.id}
-                    className="flex flex-col gap-2 rounded-md border px-3 py-2 sm:flex-row sm:items-center sm:justify-between"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Button
-                        type="button"
-                        variant={isSelected ? "secondary" : "outline"}
-                        size="sm"
-                        onClick={() => onToggleSkill(skill.id)}
-                        disabled={!isSelected && !canAddMore}
-                      >
-                        {isSelected ? "Selected" : "Select"}
-                      </Button>
-                      <span className={isSelected ? "text-sm font-semibold" : "text-sm text-muted-foreground"}>
-                        {skill.name}
-                      </span>
-                    </div>
-                    {isSelected && selectedSkill ? (
-                      <Select
-                        value={selectedSkill.proficiencyLevel}
-                        onChange={(event) =>
-                          onSetSkillProficiency(skill.id, event.target.value as SkillProficiencyValue)
-                        }
-                        className="sm:w-48"
-                      >
-                        {skillProficiencyOptions.map((value) => (
-                          <option key={value} value={value}>
-                            {proficiencyLabelMap[value]}
-                          </option>
-                        ))}
-                      </Select>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
+                {option}
+              </button>
+            ))}
+            {showCustomAdd ? (
+              <button
+                type="button"
+                className="block w-full px-3 py-2 text-left text-sm text-primary hover:bg-primary/10"
+                onClick={() => addSkill(query)}
+              >
+                + Add &quot;{query.trim()}&quot;
+              </button>
+            ) : null}
           </div>
-        ))}
+        ) : null}
       </div>
+
+      <div className="flex flex-wrap gap-2">
+        {value.map((skill) => {
+          const proficiency = proficiencyBySkill[skill] ?? "beginner";
+
+          return (
+            <div
+              key={skill}
+              className="inline-flex items-center gap-1 rounded-full border border-primary/30 bg-background px-3 py-1 text-xs text-foreground"
+            >
+              <span>{skill}</span>
+              <button
+                type="button"
+                onClick={() => cycleProficiency(skill)}
+                className={`rounded-full border px-2 py-0.5 text-[10px] font-medium ${proficiencyClassMap[proficiency]}`}
+              >
+                {proficiencyLabelMap[proficiency]}
+              </button>
+              <button
+                type="button"
+                onClick={() => removeSkill(skill)}
+                aria-label={`Remove ${skill}`}
+                className="rounded-full p-0.5 text-muted-foreground"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+
+      {errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
     </div>
   );
 }
