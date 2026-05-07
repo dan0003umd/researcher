@@ -460,7 +460,9 @@ async function loadMatchedLabsForStudent(params: {
   const adminClient = createAdminClient();
   const { data: featuredLabs, error: featuredError } = await adminClient
     .from("faculty_profiles")
-    .select("user_id, display_name, lab_name, department, bio, currently_recruiting, desired_experience_level, updated_at")
+    .select(
+      "user_id, display_name, lab_name, department, bio, currently_recruiting, desired_experience_level, recruiting_message, updated_at",
+    )
     .order("currently_recruiting", { ascending: false })
     .order("updated_at", { ascending: false })
     .limit(18);
@@ -522,9 +524,11 @@ async function loadMatchedLabsForStudent(params: {
       labName: row.lab_name,
       department: row.department,
       bio: row.bio,
+      recruitingMessage: row.recruiting_message,
       currentlyRecruiting: row.currently_recruiting,
       experienceLevelSought: row.desired_experience_level,
       interests: labInterestMap.get(row.user_id) ?? [],
+      desiredSkills: [],
       verified: true,
     }));
 }

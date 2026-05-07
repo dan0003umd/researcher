@@ -145,4 +145,13 @@
     text-decoration: underline;
     text-underline-offset: 0.2em;
   }
+
+  mark {
+    background: transparent;
+    color: inherit;
+    font-weight: 600;
+    text-decoration: underline;
+    text-decoration-color: var(--primary);
+    text-underline-offset: 2px;
+  }
 }

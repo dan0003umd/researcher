@@ -16,15 +16,23 @@ export type LabCardData = {
   labName: string | null;
   department: string | null;
   bio: string | null;
+  recruitingMessage: string | null;
   currentlyRecruiting: boolean;
   experienceLevelSought: "any" | "beginner" | "intermediate" | "advanced";
   interests: LabCardInterest[];
+  desiredSkills: Array<{
+    id: number;
+    name: string;
+    category: string;
+    proficiencyLevel: "beginner" | "intermediate" | "advanced" | "expert";
+  }>;
   verified: boolean;
 };
 
 type LabCardProps = {
   lab: LabCardData;
   canExpressInterest?: boolean;
+  highlightQuery?: string;
 };
 
 const maxVisibleInterests = 4;
@@ -48,12 +56,33 @@ function getBioExcerpt(value: string | null) {
     return normalized;
   }
 
-  return `${normalized.slice(0, maxBioLength - 1).trimEnd()}…`;
+  return `${normalized.slice(0, maxBioLength - 3).trimEnd()}...`;
 }
 
-export function LabCard({ lab, canExpressInterest = false }: LabCardProps) {
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function renderHighlightedText(value: string, query: string) {
+  const tokens = Array.from(new Set(query.toLowerCase().split(/\s+/).filter(Boolean)));
+
+  if (!value || tokens.length === 0) {
+    return value;
+  }
+
+  const matcher = new RegExp(`(${tokens.map(escapeRegExp).join("|")})`, "ig");
+  const parts = value.split(matcher);
+
+  return parts.map((part, index) => {
+    const shouldHighlight = tokens.some((token) => part.toLowerCase() === token);
+    return shouldHighlight ? <mark key={`${part}-${index}`}>{part}</mark> : part;
+  });
+}
+
+export function LabCard({ lab, canExpressInterest = false, highlightQuery = "" }: LabCardProps) {
   const visibleInterests = lab.interests.slice(0, maxVisibleInterests);
   const hiddenInterestCount = Math.max(lab.interests.length - maxVisibleInterests, 0);
+  const normalizedQuery = highlightQuery.trim();
 
   return (
     <article className="h-full">
@@ -61,7 +90,7 @@ export function LabCard({ lab, canExpressInterest = false }: LabCardProps) {
         <Card className="h-full min-h-[280px] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md">
           <CardHeader className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
-              <CardTitle className="text-lg leading-tight">{lab.piName}</CardTitle>
+              <CardTitle className="text-lg leading-tight">{renderHighlightedText(lab.piName, normalizedQuery)}</CardTitle>
               {lab.verified ? (
                 <Badge className="border-emerald-300 bg-emerald-100 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200">
                   <CheckCircle2 className="mr-1 h-3.5 w-3.5" />
@@ -75,8 +104,12 @@ export function LabCard({ lab, canExpressInterest = false }: LabCardProps) {
               ) : null}
             </div>
             <div className="space-y-1">
-              <p className="text-sm font-medium text-foreground/95">{lab.labName?.trim() || "Research Lab"}</p>
-              <p className="text-sm text-muted-foreground">{lab.department?.trim() || "Department not listed"}</p>
+              <p className="text-sm font-medium text-foreground/95">
+                {renderHighlightedText(lab.labName?.trim() || "Research Lab", normalizedQuery)}
+              </p>
+              <p className="text-sm text-muted-foreground">
+                {renderHighlightedText(lab.department?.trim() || "Department not listed", normalizedQuery)}
+              </p>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -135,4 +168,3 @@ export function LabCardSkeleton() {
     </Card>
   );
 }
-

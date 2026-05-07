@@ -47,7 +47,7 @@ type FacultyRow = {
   bio: string | null;
   currently_recruiting: boolean;
   desired_experience_level: (typeof experienceLevelOptions)[number];
-  recruiting_message?: string | null;
+  recruiting_message: string | null;
 };
 
 type InterestLinkRow = {
@@ -379,10 +379,12 @@ async function loadFacultyRows(filters: z.infer<typeof searchLabsInputSchema>) {
 
   let query = adminClient
     .from("faculty_profiles")
-    .select("user_id, display_name, lab_name, department, bio, currently_recruiting, desired_experience_level, updated_at")
+    .select(
+      "user_id, display_name, lab_name, department, bio, currently_recruiting, desired_experience_level, recruiting_message, updated_at",
+    )
     .order("currently_recruiting", { ascending: false })
     .order("updated_at", { ascending: false })
-    .limit(60);
+    .limit(200);
 
   if (filters.recruiting !== undefined) {
     query = query.eq("currently_recruiting", filters.recruiting);
@@ -401,10 +403,12 @@ async function loadFacultyRows(filters: z.infer<typeof searchLabsInputSchema>) {
   if (error && term) {
     let fallbackQuery = adminClient
       .from("faculty_profiles")
-      .select("user_id, display_name, lab_name, department, bio, currently_recruiting, desired_experience_level, updated_at")
+      .select(
+        "user_id, display_name, lab_name, department, bio, currently_recruiting, desired_experience_level, recruiting_message, updated_at",
+      )
       .order("currently_recruiting", { ascending: false })
       .order("updated_at", { ascending: false })
-      .limit(60)
+      .limit(200)
       .or(`lab_name.ilike.%${term}%,bio.ilike.%${term}%,department.ilike.%${term}%`);
 
     if (filters.recruiting !== undefined) {
@@ -445,16 +449,24 @@ async function buildLabResults(rows: FacultyRow[]) {
       labName: string | null;
       department: string | null;
       bio: string | null;
+      recruitingMessage: string | null;
       currentlyRecruiting: boolean;
       experienceLevelSought: (typeof experienceLevelOptions)[number];
       interests: Array<{ id: number; name: string; category: string; isPrimary: boolean }>;
+      desiredSkills: Array<{
+        id: number;
+        name: string;
+        category: string;
+        proficiencyLevel: "beginner" | "intermediate" | "advanced" | "expert";
+      }>;
       verified: boolean;
     }>;
   }
 
   const userIds = rows.map((row) => row.user_id);
-  const [interestMap, verifiedIds] = await Promise.all([
+  const [interestMap, skillMap, verifiedIds] = await Promise.all([
     loadLabInterestMap(userIds),
+    loadLabSkillMap(userIds),
     loadVerifiedFacultyIds(userIds),
   ]);
 
@@ -466,9 +478,11 @@ async function buildLabResults(rows: FacultyRow[]) {
       labName: row.lab_name,
       department: row.department,
       bio: row.bio,
+      recruitingMessage: row.recruiting_message,
       currentlyRecruiting: row.currently_recruiting,
       experienceLevelSought: row.desired_experience_level,
       interests: interestMap.get(row.user_id) ?? [],
+      desiredSkills: skillMap.get(row.user_id) ?? [],
       verified: true,
     }));
 }
@@ -677,7 +691,9 @@ export const discoverRouter = createTRPCRouter({
     const adminClient = createAdminClient();
     const { data, error } = await adminClient
       .from("faculty_profiles")
-      .select("user_id, display_name, lab_name, department, bio, currently_recruiting, desired_experience_level")
+      .select(
+        "user_id, display_name, lab_name, department, bio, currently_recruiting, desired_experience_level, recruiting_message",
+      )
       .order("currently_recruiting", { ascending: false })
       .order("updated_at", { ascending: false })
       .limit(6);

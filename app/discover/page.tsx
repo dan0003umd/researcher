@@ -1,24 +1,12 @@
-import Link from "next/link";
 import { headers } from "next/headers";
-import { DiscoverFilters } from "@/app/discover/DiscoverFilters";
-import { LabCard } from "@/components/shared/cards/LabCard";
-import { buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { DiscoverResultsClient } from "@/app/discover/DiscoverResultsClient";
+import { type DiscoverFilterState } from "@/app/discover/DiscoverFilters";
 import { createClient } from "@/lib/supabase/server";
 import { appRouter } from "@/server/routers";
 import { createTRPCContext } from "@/server/trpc";
 
 type DiscoverPageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
-};
-
-type ExperienceLevelFilter = "" | "any" | "beginner" | "intermediate" | "advanced";
-
-type DiscoverFilterState = {
-  interests: string[];
-  department: string;
-  recruiting: boolean;
-  experienceLevel: ExperienceLevelFilter;
 };
 
 function toArray(value: string | string[] | undefined) {
@@ -31,18 +19,15 @@ function toArray(value: string | string[] | undefined) {
 
 function parseInterestFilters(params: Record<string, string | string[] | undefined>) {
   const values = [...toArray(params.interest), ...toArray(params.interests)];
-  const deduped = Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
-
-  return deduped;
+  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean)));
 }
 
 function parseRecruitingFilter(value: string | string[] | undefined) {
   const input = Array.isArray(value) ? value[0] : value;
-
   return input === "true" || input === "1" || input === "on";
 }
 
-function parseExperienceLevelFilter(value: string | string[] | undefined): ExperienceLevelFilter {
+function parseExperienceLevelFilter(value: string | string[] | undefined): DiscoverFilterState["experienceLevel"] {
   const input = (Array.isArray(value) ? value[0] : value)?.trim();
 
   if (!input) {
@@ -67,13 +52,9 @@ function parseDiscoverFilters(params: Record<string, string | string[] | undefin
   };
 }
 
-function hasActiveFilters(filters: DiscoverFilterState) {
-  return (
-    filters.interests.length > 0 ||
-    filters.department.length > 0 ||
-    filters.recruiting ||
-    filters.experienceLevel.length > 0
-  );
+function parseSearchQuery(params: Record<string, string | string[] | undefined>) {
+  const query = Array.isArray(params.q) ? params.q[0] : params.q;
+  return (query ?? "").trim();
 }
 
 async function createDiscoverCaller() {
@@ -112,19 +93,12 @@ function resolveExpressInterestAccess(user: {
 export default async function DiscoverPage({ searchParams }: DiscoverPageProps) {
   const resolvedSearchParams = await searchParams;
   const filters = parseDiscoverFilters(resolvedSearchParams);
+  const query = parseSearchQuery(resolvedSearchParams);
   const caller = await createDiscoverCaller();
-  const shouldSearch = hasActiveFilters(filters);
 
   const [filterGroups, labsResponse, user] = await Promise.all([
     caller.discover.getResearchInterestFilters(),
-    shouldSearch
-      ? caller.discover.searchLabs({
-          interests: filters.interests,
-          department: filters.department || undefined,
-          recruiting: filters.recruiting ? true : undefined,
-          experienceLevel: filters.experienceLevel || undefined,
-        })
-      : caller.discover.getFeaturedLabs(),
+    caller.discover.searchLabs({}),
     (async () => {
       const supabase = await createClient();
       const {
@@ -135,7 +109,6 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
     })(),
   ]);
 
-  const labs = labsResponse.labs;
   const canExpressInterest = resolveExpressInterestAccess(
     user ? { app_metadata: user.app_metadata as Record<string, unknown> } : null,
   );
@@ -145,41 +118,16 @@ export default async function DiscoverPage({ searchParams }: DiscoverPageProps) 
       <header className="space-y-2">
         <p className="text-sm font-medium uppercase tracking-[0.14em] text-muted-foreground">Discover</p>
         <h1 className="text-3xl font-semibold tracking-tight">Browse UMD Labs and Faculty</h1>
-        <p className="text-sm text-muted-foreground">
-          {labsResponse.total} labs found
-          {!shouldSearch ? " · Featured for first-time browsing" : ""}
-        </p>
+        <p className="text-sm text-muted-foreground">{labsResponse.total} labs available to browse</p>
       </header>
 
-      <div className="grid gap-6 md:grid-cols-[300px_minmax(0,1fr)]">
-        <DiscoverFilters groups={filterGroups} currentFilters={filters} />
-
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">{labsResponse.total} labs found</p>
-
-          {labs.length === 0 ? (
-            <div className="rounded-xl border border-border/90 bg-card p-8 text-center shadow-sm">
-              <h2 className="text-xl font-semibold tracking-tight">No labs match your filters yet</h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Try removing some filters or check back as more labs join
-              </p>
-              <Link
-                href="/discover"
-                className={cn(buttonVariants({ variant: "outline" }), "mt-5")}
-              >
-                Clear all filters
-              </Link>
-            </div>
-          ) : (
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {labs.map((lab) => (
-                <LabCard key={lab.id} lab={lab} canExpressInterest={canExpressInterest} />
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+      <DiscoverResultsClient
+        groups={filterGroups}
+        initialFilters={filters}
+        initialQuery={query}
+        labs={labsResponse.labs}
+        canExpressInterest={canExpressInterest}
+      />
     </section>
   );
 }
-

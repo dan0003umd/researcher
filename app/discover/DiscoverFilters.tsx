@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { SlidersHorizontal, X } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -8,19 +7,19 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 
-type InterestOption = {
+export type InterestOption = {
   id: number;
   name: string;
   category: string;
   parent_id: number | null;
 };
 
-type InterestGroup = {
+export type InterestGroup = {
   category: string;
   interests: InterestOption[];
 };
 
-type DiscoverFilterState = {
+export type DiscoverFilterState = {
   interests: string[];
   department: string;
   recruiting: boolean;
@@ -29,28 +28,47 @@ type DiscoverFilterState = {
 
 type DiscoverFiltersProps = {
   groups: InterestGroup[];
-  currentFilters: DiscoverFilterState;
+  filters: DiscoverFilterState;
+  onChange: (next: DiscoverFilterState) => void;
+  onClearAll: () => void;
 };
 
 type FilterFormProps = {
   groups: InterestGroup[];
-  currentFilters: DiscoverFilterState;
-  onSubmit?: () => void;
+  filters: DiscoverFilterState;
+  onChange: (next: DiscoverFilterState) => void;
+  onClearAll: () => void;
 };
 
-function FilterForm({ groups, currentFilters, onSubmit }: FilterFormProps) {
-  const selectedInterestIds = new Set(currentFilters.interests);
+function FilterForm({ groups, filters, onChange, onClearAll }: FilterFormProps) {
+  const selectedInterestIds = new Set(filters.interests);
+
+  const toggleInterest = (interestId: string, checked: boolean) => {
+    const nextInterests = checked
+      ? Array.from(new Set([...filters.interests, interestId]))
+      : filters.interests.filter((value) => value !== interestId);
+
+    onChange({
+      ...filters,
+      interests: nextInterests,
+    });
+  };
 
   return (
-    <form action="/discover" method="get" className="space-y-5" onSubmit={onSubmit}>
+    <div className="space-y-5">
       <div className="space-y-2">
         <label htmlFor="department" className="text-sm font-medium">
           Department / Keyword
         </label>
         <Input
           id="department"
-          name="department"
-          defaultValue={currentFilters.department}
+          value={filters.department}
+          onChange={(event) =>
+            onChange({
+              ...filters,
+              department: event.target.value,
+            })
+          }
           placeholder="e.g. Computer Science"
         />
       </div>
@@ -59,7 +77,16 @@ function FilterForm({ groups, currentFilters, onSubmit }: FilterFormProps) {
         <label htmlFor="experienceLevel" className="text-sm font-medium">
           Experience Level Sought
         </label>
-        <Select id="experienceLevel" name="experienceLevel" defaultValue={currentFilters.experienceLevel}>
+        <Select
+          id="experienceLevel"
+          value={filters.experienceLevel}
+          onChange={(event) =>
+            onChange({
+              ...filters,
+              experienceLevel: event.target.value as DiscoverFilterState["experienceLevel"],
+            })
+          }
+        >
           <option value="">Any</option>
           <option value="any">Any</option>
           <option value="beginner">Beginner</option>
@@ -69,7 +96,15 @@ function FilterForm({ groups, currentFilters, onSubmit }: FilterFormProps) {
       </div>
 
       <label className="flex items-center gap-3 rounded-md border border-border/80 bg-card px-3 py-2 text-sm">
-        <Checkbox name="recruiting" value="true" defaultChecked={currentFilters.recruiting} />
+        <Checkbox
+          checked={filters.recruiting}
+          onChange={(event) =>
+            onChange({
+              ...filters,
+              recruiting: event.target.checked,
+            })
+          }
+        />
         Open to students
       </label>
 
@@ -91,9 +126,8 @@ function FilterForm({ groups, currentFilters, onSubmit }: FilterFormProps) {
                   return (
                     <label key={interest.id} className="flex items-center gap-2 text-sm text-foreground/90">
                       <Checkbox
-                        name="interest"
-                        value={value}
-                        defaultChecked={selectedInterestIds.has(value)}
+                        checked={selectedInterestIds.has(value)}
+                        onChange={(event) => toggleInterest(value, event.target.checked)}
                       />
                       <span>{interest.name}</span>
                     </label>
@@ -105,25 +139,23 @@ function FilterForm({ groups, currentFilters, onSubmit }: FilterFormProps) {
         </div>
       </div>
 
-      <div className="flex items-center gap-2">
-        <Button type="submit" className="flex-1">
-          Apply Filters
-        </Button>
-        <Link href="/discover" className="text-sm text-muted-foreground underline-offset-4 hover:underline">
+      <div className="flex items-center justify-end gap-2">
+        <p className="text-xs text-muted-foreground">Filters update automatically</p>
+        <button type="button" onClick={onClearAll} className="text-sm text-muted-foreground underline-offset-4 hover:underline">
           Clear
-        </Link>
+        </button>
       </div>
-    </form>
+    </div>
   );
 }
 
-export function DiscoverFilters({ groups, currentFilters }: DiscoverFiltersProps) {
+export function DiscoverFilters({ groups, filters, onChange, onClearAll }: DiscoverFiltersProps) {
   const [isMobileOpen, setMobileOpen] = useState(false);
   const activeFilterCount =
-    currentFilters.interests.length +
-    (currentFilters.department ? 1 : 0) +
-    (currentFilters.recruiting ? 1 : 0) +
-    (currentFilters.experienceLevel ? 1 : 0);
+    filters.interests.length +
+    (filters.department ? 1 : 0) +
+    (filters.recruiting ? 1 : 0) +
+    (filters.experienceLevel ? 1 : 0);
 
   return (
     <>
@@ -138,7 +170,7 @@ export function DiscoverFilters({ groups, currentFilters }: DiscoverFiltersProps
       <aside className="hidden md:block">
         <div className="sticky top-24 rounded-xl border border-border/90 bg-card/60 p-5">
           <h2 className="mb-4 text-sm font-semibold uppercase tracking-[0.08em] text-muted-foreground">Filters</h2>
-          <FilterForm groups={groups} currentFilters={currentFilters} />
+          <FilterForm groups={groups} filters={filters} onChange={onChange} onClearAll={onClearAll} />
         </div>
       </aside>
 
@@ -159,10 +191,9 @@ export function DiscoverFilters({ groups, currentFilters }: DiscoverFiltersProps
             </div>
             <FilterForm
               groups={groups}
-              currentFilters={currentFilters}
-              onSubmit={() => {
-                setMobileOpen(false);
-              }}
+              filters={filters}
+              onChange={onChange}
+              onClearAll={onClearAll}
             />
           </div>
         </div>
