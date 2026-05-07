@@ -150,6 +150,22 @@ function normalizeCustomName(value: string) {
   return value.replace(/\s+/g, " ").trim();
 }
 
+function serializeError(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      ...Object.getOwnPropertyNames(error).reduce<Record<string, unknown>>((acc, key) => {
+        acc[key] = (error as Error & Record<string, unknown>)[key];
+        return acc;
+      }, {}),
+    };
+  }
+
+  return error;
+}
+
 async function replaceInterestSelections(
   userId: string,
   interests: Array<{ interestId: number; isPrimary: boolean }>,
@@ -524,41 +540,53 @@ export const profileRouter = createTRPCRouter({
         });
       }
 
-      const { error: upsertError } = await ctx.supabase.from("student_profiles").upsert(
-        {
-          user_id: ctx.user.id,
-          display_name: input.displayName,
-          year_level: input.yearLevel,
-          degree_type: input.degreeType,
-          department: input.department,
-          availability: input.availability,
-          experience_level: input.experienceLevel,
-          preferred_collaboration_type: normalizedCollaborationTypes,
-          lab_experience: input.labExperience,
-          bio: input.bio,
-          linkedin_url: cleanOptionalUrl(input.linkedinUrl),
-          orcid_url: cleanOptionalUrl(input.orcidUrl),
-          website_url: cleanOptionalUrl(input.websiteUrl),
-          hours_per_week: null,
-          start_date_availability: null,
-          github_url: null,
-        },
-        { onConflict: "user_id" },
-      );
+      const profilePayload = {
+        user_id: ctx.user.id,
+        display_name: input.displayName,
+        year_level: input.yearLevel,
+        degree_type: input.degreeType,
+        department: input.department,
+        availability: input.availability,
+        experience_level: input.experienceLevel,
+        preferred_collaboration_type: normalizedCollaborationTypes,
+        lab_experience: input.labExperience,
+        bio: input.bio,
+        linkedin_url: cleanOptionalUrl(input.linkedinUrl),
+        orcid_url: cleanOptionalUrl(input.orcidUrl),
+        website_url: cleanOptionalUrl(input.websiteUrl),
+        hours_per_week: null,
+        start_date_availability: null,
+        github_url: null,
+      };
 
-      if (upsertError) {
+      try {
+        const { error: upsertError } = await ctx.supabase
+          .from("student_profiles")
+          .upsert(profilePayload, { onConflict: "user_id" });
+
+        if (upsertError) {
+          console.error("createStudentProfile payload:", JSON.stringify(profilePayload, null, 2));
+          throw upsertError;
+        }
+
+        await replaceInterestSelections(ctx.user.id, input.interests, ctx.supabase);
+        await replaceSkillSelections(ctx.user.id, input.skills, ctx.supabase);
+
+        return {
+          success: true,
+        };
+      } catch (err) {
+        console.error("createStudentProfile error:", JSON.stringify(serializeError(err), null, 2));
+
+        if (err instanceof TRPCError) {
+          throw err;
+        }
+
         throw new TRPCError({
           code: "INTERNAL_SERVER_ERROR",
           message: "Could not save student profile.",
         });
       }
-
-      await replaceInterestSelections(ctx.user.id, input.interests, ctx.supabase);
-      await replaceSkillSelections(ctx.user.id, input.skills, ctx.supabase);
-
-      return {
-        success: true,
-      };
     }),
 
   updateStudentProfile: protectedProcedure
